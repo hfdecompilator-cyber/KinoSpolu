@@ -8,6 +8,19 @@ This repository now includes a HEARO-style watch-party baseline with legal acces
 4. Room join is rejected unless each participant has a valid service access token.
 5. The app syncs room state only (playback, chat, participants); it does not restream media.
 
+## CZ/SK market support
+
+Service catalog now includes local platforms in addition to global services:
+
+- Voyo
+- iVysilani
+- RTVS archive
+- Prima+
+- O2 TV
+- Skylink Live TV
+
+The UI marks CZ/SK-ready services and supports affiliate-ready signup links in join flow.
+
 For Netflix, verification checks a real session against `https://www.netflix.com/browse`.
 For non-Netflix services, this example records participant attestation + account reference (upgrade to OAuth/provider entitlement checks in production).
 
@@ -50,3 +63,8 @@ If you need deterministic tests without real cookies, set `NETFLIX_BROWSE_URL` t
 - Tokens are short-lived (30 minutes) and stored in memory in this example.
 - Do not log raw Netflix cookies.
 - For production, store verification state in a database and add rate limiting.
+
+## Monetization-safe zones
+
+- Ads are rendered only in social UI areas (lobby/chat/panels), never injected into provider video playback.
+- Room tier supports free/premium participant caps (free 3, premium 10) as a freemium baseline.

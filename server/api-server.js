@@ -9,20 +9,116 @@ const NETFLIX_BROWSE_URL =
   process.env.NETFLIX_BROWSE_URL ?? "https://www.netflix.com/browse";
 
 const SERVICE_CATALOG = [
-  { id: "netflix", name: "Netflix" },
-  { id: "disney_plus", name: "Disney+" },
-  { id: "hulu", name: "Hulu" },
-  { id: "prime_video", name: "Prime Video" },
-  { id: "hbo_max", name: "HBO Max" },
-  { id: "plex", name: "Plex" },
-  { id: "paramount_plus", name: "Paramount+" },
-  { id: "youtube", name: "YouTube" },
-  { id: "crunchyroll", name: "Crunchyroll" },
-  { id: "google_drive", name: "Google Drive" },
-  { id: "pluto_tv", name: "Pluto TV" },
-  { id: "tubi", name: "Tubi" },
-  { id: "youtube_tv", name: "YouTube TV" },
-  { id: "twitch", name: "Twitch" },
+  {
+    id: "netflix",
+    name: "Netflix",
+    markets: ["global", "cz", "sk"],
+    signupUrl: "https://www.netflix.com/signup",
+  },
+  {
+    id: "disney_plus",
+    name: "Disney+",
+    markets: ["global", "cz", "sk"],
+    signupUrl: "https://www.disneyplus.com/",
+  },
+  {
+    id: "hulu",
+    name: "Hulu",
+    markets: ["global"],
+    signupUrl: "https://www.hulu.com/",
+  },
+  {
+    id: "prime_video",
+    name: "Prime Video",
+    markets: ["global", "cz", "sk"],
+    signupUrl: "https://www.primevideo.com/",
+  },
+  {
+    id: "hbo_max",
+    name: "HBO Max",
+    markets: ["global", "cz", "sk"],
+    signupUrl: "https://www.max.com/",
+  },
+  { id: "plex", name: "Plex", markets: ["global"], signupUrl: "https://www.plex.tv/" },
+  {
+    id: "paramount_plus",
+    name: "Paramount+",
+    markets: ["global"],
+    signupUrl: "https://www.paramountplus.com/",
+  },
+  {
+    id: "youtube",
+    name: "YouTube",
+    markets: ["global", "cz", "sk"],
+    signupUrl: "https://www.youtube.com/",
+  },
+  {
+    id: "crunchyroll",
+    name: "Crunchyroll",
+    markets: ["global", "cz", "sk"],
+    signupUrl: "https://www.crunchyroll.com/",
+  },
+  {
+    id: "google_drive",
+    name: "Google Drive",
+    markets: ["global", "cz", "sk"],
+    signupUrl: "https://workspace.google.com/products/drive/",
+  },
+  {
+    id: "pluto_tv",
+    name: "Pluto TV",
+    markets: ["global", "cz", "sk"],
+    signupUrl: "https://pluto.tv/",
+  },
+  { id: "tubi", name: "Tubi", markets: ["global"], signupUrl: "https://tubitv.com/" },
+  {
+    id: "youtube_tv",
+    name: "YouTube TV",
+    markets: ["global"],
+    signupUrl: "https://tv.youtube.com/",
+  },
+  {
+    id: "twitch",
+    name: "Twitch",
+    markets: ["global", "cz", "sk"],
+    signupUrl: "https://www.twitch.tv/",
+  },
+  {
+    id: "voyo",
+    name: "Voyo",
+    markets: ["cz", "sk"],
+    signupUrl: "https://voyo.nova.cz/",
+  },
+  {
+    id: "ivysilani",
+    name: "iVysilani",
+    markets: ["cz"],
+    signupUrl: "https://www.ceskatelevize.cz/ivysilani/",
+  },
+  {
+    id: "rtvs",
+    name: "RTVS",
+    markets: ["sk"],
+    signupUrl: "https://www.rtvs.sk/televizia/archiv",
+  },
+  {
+    id: "prima_plus",
+    name: "Prima+",
+    markets: ["cz", "sk"],
+    signupUrl: "https://www.iprima.cz/",
+  },
+  {
+    id: "o2_tv",
+    name: "O2 TV",
+    markets: ["cz"],
+    signupUrl: "https://www.o2tv.cz/",
+  },
+  {
+    id: "skylink_live_tv",
+    name: "Skylink Live TV",
+    markets: ["cz", "sk"],
+    signupUrl: "https://livetv.skylink.cz/",
+  },
 ];
 
 const serviceById = new Map(SERVICE_CATALOG.map((entry) => [entry.id, entry]));
@@ -112,6 +208,8 @@ const buildRoomSnapshot = (room) => ({
   legalMode: room.legalMode,
   legalNotice: room.legalNotice,
   selectedContent: room.selectedContent,
+  roomTier: room.roomTier,
+  participantLimit: room.participantLimit,
   participants: room.participants,
   playback: room.playback,
   messages: room.messages,
@@ -182,6 +280,7 @@ const server = http.createServer(async (req, res) => {
       now: new Date().toISOString(),
       rooms: rooms.size,
       services: SERVICE_CATALOG.length,
+      targetMarkets: ["cz", "sk", "global"],
     });
     return;
   }
@@ -343,11 +442,13 @@ const server = http.createServer(async (req, res) => {
       const serviceId = String(body.serviceId ?? "").trim();
       const roomName = String(body.roomName ?? "").trim();
       const hostName = String(body.hostName ?? "").trim();
+      const roomTier = String(body.roomTier ?? "free").trim().toLowerCase();
       const contentTitle = String(body.contentTitle ?? "").trim();
       const contentKind = String(body.contentKind ?? "").trim();
       const contentUrl = String(body.contentUrl ?? "").trim();
       const contentThumbnail = String(body.contentThumbnail ?? "").trim();
       const service = serviceById.get(serviceId);
+      const participantLimit = roomTier === "premium" ? 10 : 3;
 
       if (!service) {
         json(res, 400, {
@@ -381,6 +482,13 @@ const server = http.createServer(async (req, res) => {
         });
         return;
       }
+      if (!["free", "premium"].includes(roomTier)) {
+        json(res, 400, {
+          ok: false,
+          error: "roomTier must be free or premium.",
+        });
+        return;
+      }
       if (!contentTitle || !contentUrl) {
         json(res, 400, {
           ok: false,
@@ -408,6 +516,8 @@ const server = http.createServer(async (req, res) => {
           pickedAt: new Date().toISOString(),
           pickedBy: hostName,
         },
+        roomTier,
+        participantLimit,
         partyLink: "/room/pending",
         participants: [
           {
@@ -494,8 +604,11 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
-      if (room.participants.length >= 25) {
-        json(res, 400, { ok: false, error: "Room is full." });
+      if (room.participants.length >= room.participantLimit) {
+        json(res, 400, {
+          ok: false,
+          error: `Room is full for ${room.roomTier} tier (limit ${room.participantLimit}).`,
+        });
         return;
       }
 

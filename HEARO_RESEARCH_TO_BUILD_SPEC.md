@@ -24,6 +24,9 @@ Implemented in this repository:
 - Participant presence tracking
 - Room chat timeline
 - Voice room connection state (UI simulation hook)
+- Legal BYOS join gate for every participant
+- CZ/SK service catalog entries (Voyo, iVysilani, RTVS, Prima+, O2 TV, Skylink)
+- Freemium room-tier limits (free vs premium capacity)
 
 ## Gap to full HEARO parity
 

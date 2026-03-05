@@ -3,6 +3,8 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 type Service = {
   id: string;
   name: string;
+  markets?: string[];
+  signupUrl?: string;
 };
 
 type ContentItem = {
@@ -57,6 +59,8 @@ type Room = {
     pickedAt: string;
     pickedBy: string;
   };
+  roomTier?: "free" | "premium";
+  participantLimit?: number;
   participants: RoomParticipant[];
   playback: RoomPlayback;
   messages: RoomMessage[];
@@ -77,6 +81,12 @@ const SERVICE_ICONS: Record<string, string> = {
   tubi: "TB",
   youtube_tv: "YTV",
   twitch: "TW",
+  voyo: "VO",
+  ivysilani: "iV",
+  rtvs: "RT",
+  prima_plus: "P+",
+  o2_tv: "O2",
+  skylink_live_tv: "SL",
 };
 
 const SERVICE_HOME: Record<string, string> = {
@@ -94,6 +104,12 @@ const SERVICE_HOME: Record<string, string> = {
   tubi: "https://tubitv.com/",
   youtube_tv: "https://tv.youtube.com/",
   twitch: "https://www.twitch.tv/",
+  voyo: "https://voyo.nova.cz/",
+  ivysilani: "https://www.ceskatelevize.cz/ivysilani/",
+  rtvs: "https://www.rtvs.sk/televizia/archiv",
+  prima_plus: "https://www.iprima.cz/",
+  o2_tv: "https://www.o2tv.cz/",
+  skylink_live_tv: "https://livetv.skylink.cz/",
 };
 
 const CONTENT_LIBRARY: Record<string, ContentItem[]> = {
@@ -210,6 +226,7 @@ export default function App() {
   const [selectedServiceId, setSelectedServiceId] = useState("netflix");
   const [hostName, setHostName] = useState("Host");
   const [roomName, setRoomName] = useState("Friday Night Movie");
+  const [roomTier, setRoomTier] = useState<"free" | "premium">("free");
   const [startAccessToken, setStartAccessToken] = useState("");
   const [startExpiresAt, setStartExpiresAt] = useState("");
   const [startNetflixId, setStartNetflixId] = useState("");
@@ -239,6 +256,7 @@ export default function App() {
   const [participantId, setParticipantId] = useState("");
   const [chatDraft, setChatDraft] = useState("");
   const [isVoiceEnabled, setIsVoiceEnabled] = useState(false);
+  const [voiceConsentAccepted, setVoiceConsentAccepted] = useState(false);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
@@ -270,6 +288,15 @@ export default function App() {
   const serviceForStart = useMemo(
     () => services.find((entry) => entry.id === selectedServiceId) ?? null,
     [services, selectedServiceId],
+  );
+
+  const joinService = useMemo(
+    () =>
+      services.find((entry) => entry.id === joinRoomPreview?.serviceId) ??
+      (joinRoomPreview
+        ? { id: joinRoomPreview.serviceId, name: joinRoomPreview.serviceName }
+        : null),
+    [services, joinRoomPreview],
   );
 
   const browserCatalog = useMemo(
@@ -380,6 +407,7 @@ export default function App() {
         body: JSON.stringify({
           accessToken: startAccessToken,
           serviceId: selectedServiceId,
+          roomTier,
           roomName: roomName.trim(),
           hostName: hostName.trim(),
           contentTitle: selectedContent.title,
@@ -549,6 +577,7 @@ export default function App() {
     setActiveRoom(null);
     setParticipantId("");
     setIsVoiceEnabled(false);
+    setVoiceConsentAccepted(false);
     setStatusMessage("Left lobby.");
   };
 
@@ -602,6 +631,9 @@ export default function App() {
             >
               <span className="service-icon">{SERVICE_ICONS[service.id] ?? "SV"}</span>
               <span className="service-name">{service.name}</span>
+              {service.markets?.includes("cz") || service.markets?.includes("sk") ? (
+                <span className="market-tag">CZ/SK</span>
+              ) : null}
             </button>
           ))}
         </div>
@@ -680,8 +712,22 @@ export default function App() {
 
             <article className="card">
               <h2>Create lobby</h2>
-              <p className="muted">Room can start only after access + content selection.</p>
+              <p className="muted">
+                Room can start only after access + content selection.
+              </p>
               <form className="form-grid" onSubmit={onCreateRoom}>
+                <label>
+                  Plan
+                  <select
+                    value={roomTier}
+                    onChange={(event) =>
+                      setRoomTier(event.target.value === "premium" ? "premium" : "free")
+                    }
+                  >
+                    <option value="free">Free (up to 3 people)</option>
+                    <option value="premium">Premium (up to 10 people)</option>
+                  </select>
+                </label>
                 <label>
                   Lobby name
                   <input
@@ -697,6 +743,9 @@ export default function App() {
                   {isCreatingRoom ? "Launching..." : "Launch Lobby"}
                 </button>
               </form>
+              <div className="notice info">
+                Ads are shown in social/lobby UI only, never over provider video playback.
+              </div>
               {selectedContent && (
                 <div className="notice info">
                   <p>
@@ -821,6 +870,14 @@ export default function App() {
                     Selected title: <strong>{joinRoomPreview.selectedContent.title}</strong>
                   </p>
                 )}
+                {joinService?.signupUrl && (
+                  <p>
+                    Need access?{" "}
+                    <a href={joinService.signupUrl} target="_blank" rel="noreferrer">
+                      Sign up for {joinService.name}
+                    </a>
+                  </p>
+                )}
                 <p>{joinRoomPreview.legalNotice}</p>
               </div>
             )}
@@ -936,6 +993,10 @@ export default function App() {
               Participants: {activeRoom.participants.length} | You:{" "}
               {currentUser?.name ?? "Unknown"} ({currentUser?.role ?? "n/a"})
             </p>
+            <p className="muted">
+              Plan: {activeRoom.roomTier ?? "free"} | Participant limit:{" "}
+              {activeRoom.participantLimit ?? 3}
+            </p>
 
             <div className="playback-panel">
               <p>
@@ -972,9 +1033,26 @@ export default function App() {
               <p>
                 Voice: <strong>{isVoiceEnabled ? "Connected" : "Disconnected"}</strong>
               </p>
-              <button type="button" className="ghost" onClick={() => setIsVoiceEnabled((v) => !v)}>
+              <label className="checkbox-row">
+                <input
+                  type="checkbox"
+                  checked={voiceConsentAccepted}
+                  onChange={(event) => setVoiceConsentAccepted(event.target.checked)}
+                />
+                I consent to voice-chat processing under GDPR rules.
+              </label>
+              <button
+                type="button"
+                className="ghost"
+                disabled={!voiceConsentAccepted}
+                onClick={() => setIsVoiceEnabled((v) => !v)}
+              >
                 {isVoiceEnabled ? "Disconnect voice" : "Connect voice"}
               </button>
+            </div>
+
+            <div className="ad-slot">
+              Sponsored: Brand-safe placements live in social UI only.
             </div>
 
             <div className="chat-panel">
