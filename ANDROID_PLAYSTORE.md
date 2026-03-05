@@ -57,3 +57,11 @@ If you host your web app online and want the Android app to load it directly:
   - `CAPACITOR_SERVER_URL=https://your-domain.com npm run android:aab:release`
 
 In this mode, future web changes on your hosted URL are reflected in the app without rebuilding native binaries.
+
+## 8) Compliance gate before release
+
+Run this before every store build:
+
+- `npm run compliance:check`
+
+Also review `LEGAL_PLAYSTORE_CHECKLIST.md` before uploading to production.
