@@ -5,6 +5,8 @@ def keystoreProperties = new Properties()
 if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
 }
+def appVersionCode = (project.findProperty("APP_VERSION_CODE") ?: "1").toInteger()
+def appVersionName = project.findProperty("APP_VERSION_NAME") ?: "1.0.0"
 
 android {
     namespace = "com.kinospolu.app"
@@ -13,8 +15,8 @@ android {
         applicationId "com.kinospolu.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode appVersionCode
+        versionName appVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

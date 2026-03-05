@@ -12,9 +12,13 @@
     "cap:sync": "npx cap sync android",
     "android:sync": "node scripts/sync-android.mjs",
     "android:open": "npx cap open android",
+    "android:version:show": "node scripts/android-version.mjs --show",
+    "android:version:bump": "node scripts/android-version.mjs --bump-patch",
+    "android:version:set": "node scripts/android-version.mjs",
     "android:apk:debug": "npm run android:sync && cd android && ./gradlew assembleDebug",
     "android:apk:release": "npm run android:sync && cd android && ./gradlew assembleRelease",
-    "android:aab:release": "npm run android:sync && cd android && ./gradlew bundleRelease"
+    "android:aab:release": "npm run android:sync && cd android && ./gradlew bundleRelease",
+    "android:release:next": "npm run android:version:bump && npm run android:aab:release"
   },
   "dependencies": {
     "@capacitor/android": "^8.1.0",
