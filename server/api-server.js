@@ -4,11 +4,30 @@ import { URL } from "node:url";
 import axios from "axios";
 
 const PORT = Number(process.env.API_PORT ?? 8787);
-const TOKEN_TTL_MS = 10 * 60 * 1000;
+const ACCESS_TOKEN_TTL_MS = 30 * 60 * 1000;
 const NETFLIX_BROWSE_URL =
   process.env.NETFLIX_BROWSE_URL ?? "https://www.netflix.com/browse";
 
-const verificationTokens = new Map();
+const SERVICE_CATALOG = [
+  { id: "netflix", name: "Netflix" },
+  { id: "disney_plus", name: "Disney+" },
+  { id: "hulu", name: "Hulu" },
+  { id: "prime_video", name: "Prime Video" },
+  { id: "hbo_max", name: "HBO Max" },
+  { id: "plex", name: "Plex" },
+  { id: "paramount_plus", name: "Paramount+" },
+  { id: "youtube", name: "YouTube" },
+  { id: "crunchyroll", name: "Crunchyroll" },
+  { id: "google_drive", name: "Google Drive" },
+  { id: "pluto_tv", name: "Pluto TV" },
+  { id: "tubi", name: "Tubi" },
+  { id: "youtube_tv", name: "YouTube TV" },
+  { id: "twitch", name: "Twitch" },
+];
+
+const serviceById = new Map(SERVICE_CATALOG.map((entry) => [entry.id, entry]));
+
+const accessTokens = new Map();
 const rooms = new Map();
 
 const json = (res, statusCode, payload) => {
@@ -74,14 +93,68 @@ const verifyNetflixSession = async ({ netflixId, secureNetflixId }) => {
 
 const makeRoomCode = () => randomBytes(3).toString("hex").toUpperCase();
 
-const pruneExpiredTokens = () => {
+const getRoomOrNull = (code) => {
+  if (!code) {
+    return null;
+  }
+  return rooms.get(code.toUpperCase()) ?? null;
+};
+
+const buildRoomSnapshot = (room) => ({
+  id: room.id,
+  code: room.code,
+  roomName: room.roomName,
+  hostName: room.hostName,
+  serviceId: room.serviceId,
+  serviceName: room.serviceName,
+  createdAt: room.createdAt,
+  partyLink: room.partyLink,
+  legalMode: room.legalMode,
+  legalNotice: room.legalNotice,
+  participants: room.participants,
+  playback: room.playback,
+  messages: room.messages,
+});
+
+const pruneExpiredAccessTokens = () => {
   const now = Date.now();
-  for (const [key, token] of verificationTokens.entries()) {
+  for (const [key, token] of accessTokens.entries()) {
     if (token.expiresAt <= now) {
-      verificationTokens.delete(key);
+      accessTokens.delete(key);
     }
   }
 };
+
+const issueAccessToken = ({ serviceId, displayName, method }) => {
+  const accessToken = randomUUID();
+  const expiresAt = Date.now() + ACCESS_TOKEN_TTL_MS;
+  accessTokens.set(accessToken, {
+    serviceId,
+    displayName,
+    method,
+    issuedAt: Date.now(),
+    expiresAt,
+  });
+  return {
+    accessToken,
+    expiresAt: new Date(expiresAt).toISOString(),
+  };
+};
+
+const readAccessToken = ({ accessToken, requiredServiceId }) => {
+  pruneExpiredAccessTokens();
+  const tokenRecord = accessTokens.get(accessToken);
+  if (!tokenRecord) {
+    return null;
+  }
+  if (requiredServiceId && tokenRecord.serviceId !== requiredServiceId) {
+    return null;
+  }
+  return tokenRecord;
+};
+
+const createLegalNotice = (serviceName) =>
+  `Each participant must hold independent rights to view ${serviceName}. This app only syncs playback state and chat, and does not rebroadcast copyrighted media.`;
 
 const server = http.createServer(async (req, res) => {
   if (!req.url) {
@@ -107,8 +180,113 @@ const server = http.createServer(async (req, res) => {
       service: "netflix-room-auth-api",
       now: new Date().toISOString(),
       rooms: rooms.size,
+      services: SERVICE_CATALOG.length,
     });
     return;
+  }
+
+  if (req.method === "GET" && parsedUrl.pathname === "/api/services") {
+    json(res, 200, {
+      ok: true,
+      services: SERVICE_CATALOG,
+    });
+    return;
+  }
+
+  if (req.method === "POST" && parsedUrl.pathname === "/api/access/verify") {
+    try {
+      const body = await readJsonBody(req);
+      const serviceId = String(body.serviceId ?? "").trim();
+      const displayName = String(body.displayName ?? "").trim();
+      const netflixId = String(body.netflixId ?? "").trim();
+      const secureNetflixId = String(body.secureNetflixId ?? "").trim();
+      const accountReference = String(body.accountReference ?? "").trim();
+      const attestationAccepted = Boolean(body.attestationAccepted);
+
+      if (!serviceById.has(serviceId)) {
+        json(res, 400, { ok: false, error: "Unsupported streaming service." });
+        return;
+      }
+      if (!displayName) {
+        json(res, 400, { ok: false, error: "Display name is required." });
+        return;
+      }
+
+      if (serviceId === "netflix") {
+        if (!netflixId || !secureNetflixId) {
+          json(res, 400, {
+            ok: false,
+            error: "Both NetflixId and SecureNetflixId are required.",
+          });
+          return;
+        }
+
+        const isValid = await verifyNetflixSession({ netflixId, secureNetflixId });
+        if (!isValid) {
+          json(res, 401, {
+            ok: false,
+            error:
+              "Netflix session verification failed. Sign in to Netflix first, then retry with fresh cookies.",
+          });
+          return;
+        }
+
+        const token = issueAccessToken({
+          serviceId,
+          displayName,
+          method: "netflix_session_cookie",
+        });
+        json(res, 200, {
+          ok: true,
+          serviceId,
+          displayName,
+          accessToken: token.accessToken,
+          expiresAt: token.expiresAt,
+          legalNotice: createLegalNotice("Netflix"),
+          note: "Netflix access verified. You can create or join a room.",
+        });
+        return;
+      }
+
+      if (!attestationAccepted) {
+        json(res, 400, {
+          ok: false,
+          error:
+            "You must accept the access attestation before creating or joining a room.",
+        });
+        return;
+      }
+      if (accountReference.length < 3) {
+        json(res, 400, {
+          ok: false,
+          error: "Account reference must be at least 3 characters.",
+        });
+        return;
+      }
+
+      const service = serviceById.get(serviceId);
+      const token = issueAccessToken({
+        serviceId,
+        displayName,
+        method: "user_attestation",
+      });
+      json(res, 200, {
+        ok: true,
+        serviceId,
+        displayName,
+        accessToken: token.accessToken,
+        expiresAt: token.expiresAt,
+        legalNotice: createLegalNotice(service.name),
+        note: `${service.name} access attestation recorded.`,
+      });
+      return;
+    } catch {
+      json(res, 500, {
+        ok: false,
+        error: "Unable to verify service access at this time.",
+      });
+      return;
+    }
   }
 
   if (req.method === "POST" && parsedUrl.pathname === "/api/netflix/verify-session") {
@@ -116,7 +294,7 @@ const server = http.createServer(async (req, res) => {
       const body = await readJsonBody(req);
       const netflixId = String(body.netflixId ?? "").trim();
       const secureNetflixId = String(body.secureNetflixId ?? "").trim();
-
+      const displayName = String(body.displayName ?? "Viewer").trim();
       if (!netflixId || !secureNetflixId) {
         json(res, 400, {
           ok: false,
@@ -126,7 +304,6 @@ const server = http.createServer(async (req, res) => {
       }
 
       const isValid = await verifyNetflixSession({ netflixId, secureNetflixId });
-
       if (!isValid) {
         json(res, 401, {
           ok: false,
@@ -135,18 +312,17 @@ const server = http.createServer(async (req, res) => {
         });
         return;
       }
-
-      const verificationToken = randomUUID();
-      const expiresAt = Date.now() + TOKEN_TTL_MS;
-      verificationTokens.set(verificationToken, {
-        verifiedAt: Date.now(),
-        expiresAt,
+      const token = issueAccessToken({
+        serviceId: "netflix",
+        displayName,
+        method: "netflix_session_cookie",
       });
-
       json(res, 200, {
         ok: true,
-        verificationToken,
-        expiresAt: new Date(expiresAt).toISOString(),
+        serviceId: "netflix",
+        accessToken: token.accessToken,
+        verificationToken: token.accessToken,
+        expiresAt: token.expiresAt,
         note: "Netflix authentication verified. You can now create a room.",
       });
       return;
@@ -161,23 +337,35 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === "POST" && parsedUrl.pathname === "/api/rooms") {
     try {
-      pruneExpiredTokens();
       const body = await readJsonBody(req);
-      const verificationToken = String(body.verificationToken ?? "").trim();
+      const accessToken = String(body.accessToken ?? body.verificationToken ?? "").trim();
+      const serviceId = String(body.serviceId ?? "").trim();
       const roomName = String(body.roomName ?? "").trim();
       const hostName = String(body.hostName ?? "").trim();
+      const service = serviceById.get(serviceId);
 
-      if (!verificationToken) {
-        json(res, 401, {
+      if (!service) {
+        json(res, 400, {
           ok: false,
-          error: "Netflix verification token is required before creating a room.",
+          error: "A supported serviceId is required.",
         });
         return;
       }
-      if (!verificationTokens.has(verificationToken)) {
+      if (!accessToken) {
         json(res, 401, {
           ok: false,
-          error: "Verification token is invalid or expired. Verify Netflix again.",
+          error: "A valid service access token is required before creating a room.",
+        });
+        return;
+      }
+      const tokenRecord = readAccessToken({
+        accessToken,
+        requiredServiceId: serviceId,
+      });
+      if (!tokenRecord) {
+        json(res, 401, {
+          ok: false,
+          error: "Access token is invalid or expired for this service.",
         });
         return;
       }
@@ -189,20 +377,52 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
+      const hostParticipantId = randomUUID();
       const room = {
         id: randomUUID(),
         code: makeRoomCode(),
         roomName,
         hostName,
-        service: "netflix",
+        serviceId,
+        serviceName: service.name,
         createdAt: new Date().toISOString(),
+        legalMode: "bring_your_own_subscription",
+        legalNotice: createLegalNotice(service.name),
+        partyLink: "/room/pending",
+        participants: [
+          {
+            id: hostParticipantId,
+            name: hostName,
+            role: "host",
+            accessVerified: true,
+            verificationMethod: tokenRecord.method,
+            joinedAt: new Date().toISOString(),
+          },
+        ],
+        playback: {
+          status: "paused",
+          positionSec: 0,
+          updatedAt: new Date().toISOString(),
+          updatedBy: hostName,
+        },
+        messages: [
+          {
+            id: randomUUID(),
+            participantId: hostParticipantId,
+            senderName: "System",
+            text: `${hostName} started the party.`,
+            createdAt: new Date().toISOString(),
+          },
+        ],
       };
 
+      room.partyLink = `/room/${room.code}`;
       rooms.set(room.code, room);
 
       json(res, 201, {
         ok: true,
-        room,
+        room: buildRoomSnapshot(room),
+        participantId: hostParticipantId,
       });
       return;
     } catch {
@@ -215,13 +435,231 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.method === "GET" && parsedUrl.pathname.startsWith("/api/rooms/")) {
-    const code = parsedUrl.pathname.split("/").at(-1)?.toUpperCase();
-    const room = code ? rooms.get(code) : null;
+    const code = parsedUrl.pathname.split("/")[3];
+    const room = getRoomOrNull(code);
     if (!room) {
       json(res, 404, { ok: false, error: "Room not found." });
       return;
     }
-    json(res, 200, { ok: true, room });
+    json(res, 200, { ok: true, room: buildRoomSnapshot(room) });
+    return;
+  }
+
+  if (req.method === "POST" && parsedUrl.pathname.match(/^\/api\/rooms\/[^/]+\/join$/)) {
+    try {
+      const code = parsedUrl.pathname.split("/")[3];
+      const room = getRoomOrNull(code);
+      if (!room) {
+        json(res, 404, { ok: false, error: "Room not found." });
+        return;
+      }
+
+      const body = await readJsonBody(req);
+      const displayName = String(body.displayName ?? "").trim();
+      const accessToken = String(body.accessToken ?? "").trim();
+      if (!displayName) {
+        json(res, 400, { ok: false, error: "Display name is required." });
+        return;
+      }
+      const tokenRecord = readAccessToken({
+        accessToken,
+        requiredServiceId: room.serviceId,
+      });
+      if (!tokenRecord) {
+        json(res, 401, {
+          ok: false,
+          error:
+            "A valid access token for this room's streaming service is required to join.",
+        });
+        return;
+      }
+
+      if (room.participants.length >= 25) {
+        json(res, 400, { ok: false, error: "Room is full." });
+        return;
+      }
+
+      const participantId = randomUUID();
+      const participant = {
+        id: participantId,
+        name: displayName,
+        role: "guest",
+        accessVerified: true,
+        verificationMethod: tokenRecord.method,
+        joinedAt: new Date().toISOString(),
+      };
+      room.participants.push(participant);
+      room.messages.push({
+        id: randomUUID(),
+        participantId,
+        senderName: "System",
+        text: `${displayName} joined the party.`,
+        createdAt: new Date().toISOString(),
+      });
+
+      json(res, 200, {
+        ok: true,
+        participantId,
+        room: buildRoomSnapshot(room),
+      });
+      return;
+    } catch {
+      json(res, 500, { ok: false, error: "Unable to join room." });
+      return;
+    }
+  }
+
+  if (
+    req.method === "POST" &&
+    parsedUrl.pathname.match(/^\/api\/rooms\/[^/]+\/playback$/)
+  ) {
+    try {
+      const code = parsedUrl.pathname.split("/")[3];
+      const room = getRoomOrNull(code);
+      if (!room) {
+        json(res, 404, { ok: false, error: "Room not found." });
+        return;
+      }
+
+      const body = await readJsonBody(req);
+      const participantId = String(body.participantId ?? "").trim();
+      const action = String(body.action ?? "").trim();
+      const positionSec = Number(body.positionSec ?? room.playback.positionSec);
+
+      const participant = room.participants.find((entry) => entry.id === participantId);
+      if (!participant) {
+        json(res, 401, { ok: false, error: "Invalid participant." });
+        return;
+      }
+
+      if (participant.role !== "host") {
+        json(res, 403, { ok: false, error: "Only host can control playback." });
+        return;
+      }
+
+      if (!["play", "pause", "seek"].includes(action)) {
+        json(res, 400, { ok: false, error: "Action must be play, pause, or seek." });
+        return;
+      }
+
+      if (!Number.isFinite(positionSec) || positionSec < 0) {
+        json(res, 400, { ok: false, error: "positionSec must be a non-negative number." });
+        return;
+      }
+
+      if (action === "play") {
+        room.playback.status = "playing";
+      }
+      if (action === "pause") {
+        room.playback.status = "paused";
+      }
+
+      room.playback.positionSec = Number(positionSec.toFixed(1));
+      room.playback.updatedAt = new Date().toISOString();
+      room.playback.updatedBy = participant.name;
+
+      room.messages.push({
+        id: randomUUID(),
+        participantId,
+        senderName: "System",
+        text: `${participant.name} set playback to ${room.playback.status} at ${Math.round(room.playback.positionSec)}s.`,
+        createdAt: new Date().toISOString(),
+      });
+      if (room.messages.length > 120) {
+        room.messages = room.messages.slice(-120);
+      }
+
+      json(res, 200, { ok: true, playback: room.playback, room: buildRoomSnapshot(room) });
+      return;
+    } catch {
+      json(res, 500, { ok: false, error: "Unable to update playback." });
+      return;
+    }
+  }
+
+  if (
+    req.method === "POST" &&
+    parsedUrl.pathname.match(/^\/api\/rooms\/[^/]+\/messages$/)
+  ) {
+    try {
+      const code = parsedUrl.pathname.split("/")[3];
+      const room = getRoomOrNull(code);
+      if (!room) {
+        json(res, 404, { ok: false, error: "Room not found." });
+        return;
+      }
+
+      const body = await readJsonBody(req);
+      const participantId = String(body.participantId ?? "").trim();
+      const text = String(body.text ?? "").trim();
+      if (!text) {
+        json(res, 400, { ok: false, error: "Message text is required." });
+        return;
+      }
+
+      const participant = room.participants.find((entry) => entry.id === participantId);
+      if (!participant) {
+        json(res, 401, { ok: false, error: "Invalid participant." });
+        return;
+      }
+
+      room.messages.push({
+        id: randomUUID(),
+        participantId,
+        senderName: participant.name,
+        text,
+        createdAt: new Date().toISOString(),
+      });
+      if (room.messages.length > 120) {
+        room.messages = room.messages.slice(-120);
+      }
+
+      json(res, 201, { ok: true, room: buildRoomSnapshot(room) });
+      return;
+    } catch {
+      json(res, 500, { ok: false, error: "Unable to send message." });
+      return;
+    }
+  }
+
+  if (
+    req.method === "POST" &&
+    parsedUrl.pathname.match(/^\/api\/rooms\/[^/]+\/leave$/)
+  ) {
+    try {
+      const code = parsedUrl.pathname.split("/")[3];
+      const room = getRoomOrNull(code);
+      if (!room) {
+        json(res, 404, { ok: false, error: "Room not found." });
+        return;
+      }
+
+      const body = await readJsonBody(req);
+      const participantId = String(body.participantId ?? "").trim();
+      const index = room.participants.findIndex((entry) => entry.id === participantId);
+      if (index === -1) {
+        json(res, 401, { ok: false, error: "Invalid participant." });
+        return;
+      }
+
+      const [participant] = room.participants.splice(index, 1);
+      room.messages.push({
+        id: randomUUID(),
+        participantId,
+        senderName: "System",
+        text: `${participant.name} left the party.`,
+        createdAt: new Date().toISOString(),
+      });
+      if (room.messages.length > 120) {
+        room.messages = room.messages.slice(-120);
+      }
+
+      json(res, 200, { ok: true });
+      return;
+    } catch {
+      json(res, 500, { ok: false, error: "Unable to leave room." });
+      return;
+    }
     return;
   }
 
