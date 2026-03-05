@@ -1,61 +1,38 @@
-# Welcome to your OnSpace project
+# WatchParty (HEARO-style) with Supabase + Voice Chat
 
-## How can I edit this code?
+This project now includes:
 
-There are several ways of editing your application.
+- Easy sign in (email/password, Google OAuth, magic link)
+- Watch party create/join by code
+- Synced playback events in live mode
+- Live chat in each room
+- Built-in voice chat room (Jitsi)
+- Demo mode fallback when Supabase keys are missing
 
-**Use OnSpace**
+## Quick setup
 
-Simply visit the [OnSpace Project]() and start prompting.
+1. Install dependencies
 
-Changes made via OnSpace will be committed automatically to this repo.
+`npm install`
 
-**Use your preferred IDE**
+2. Add env vars
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in OnSpace.
+`cp .env.example .env`
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+Update `.env` with your Supabase project URL + anon key.
 
-Follow these steps:
+3. Create Supabase tables and policies
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+Run `supabase/schema.sql` in the Supabase SQL editor.
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+4. Start app
 
-# Step 3: Install the necessary dependencies.
-npm i
+`npm run dev`
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
+## Live mode requirements
 
-**Edit a file directly in GitHub**
+- Supabase Auth enabled (email/password and optional Google provider)
+- RLS policies from `supabase/schema.sql`
+- Realtime enabled for `chat_messages` and `playback_events`
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [OnSpace]() and click on Share -> Publish.
+If env vars are missing, app still works in local demo mode for quick testing.
