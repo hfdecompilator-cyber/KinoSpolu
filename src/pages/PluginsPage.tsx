@@ -1,6 +1,25 @@
 import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Link } from "react-router-dom";
 import { getPlugins } from "../plugins/registry";
 import type { Plugin, PluginConfig } from "../plugins/types";
+import { LinearLogoIcon } from "../App";
+
+const COMING_SOON = [
+  { name: "Jira", desc: "Sync sprint issues with your sessions.", color: "from-blue-500 to-blue-700", icon: "🔷" },
+  { name: "Notion", desc: "Take meeting notes without leaving.", color: "from-slate-400 to-slate-600", icon: "📓" },
+  { name: "GitHub", desc: "View PRs and issues from your party.", color: "from-slate-500 to-slate-700", icon: "🐙" },
+  { name: "Slack", desc: "Auto-post recaps to your channels.", color: "from-green-500 to-emerald-600", icon: "💬" },
+];
+
+function Aurora() {
+  return (
+    <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
+      <div className="aurora-blob aurora-1 w-[700px] h-[700px] bg-[radial-gradient(circle,rgba(94,106,210,0.3),transparent_70%)] -top-40 -left-32" />
+      <div className="aurora-blob aurora-2 w-[600px] h-[600px] bg-[radial-gradient(circle,rgba(124,58,237,0.25),transparent_70%)] top-20 right-0" />
+    </div>
+  );
+}
 
 export function PluginsPage() {
   const plugins = getPlugins();
@@ -10,21 +29,34 @@ export function PluginsPage() {
   if (activePlugin) {
     const PanelComponent = activePlugin.component;
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white flex flex-col">
-        <div className="flex items-center gap-3 px-6 py-4 border-b border-white/10 backdrop-blur-md bg-white/5">
-          <button
-            onClick={() => setActivePlugin(null)}
-            className="flex items-center gap-2 text-white/60 hover:text-white transition-colors text-sm"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M19 12H5M12 5l-7 7 7 7" />
-            </svg>
-            Back to Plugins
-          </button>
-          <span className="text-white/20">/</span>
-          <span className="text-white font-medium">{activePlugin.name}</span>
+      <div className="relative min-h-screen bg-[#050511] text-white">
+        <Aurora />
+        {/* Panel header */}
+        <div className="relative z-10 sticky top-0 border-b border-white/[0.07] backdrop-blur-2xl"
+          style={{ background: "rgba(5,5,17,0.8)" }}>
+          <div className="max-w-5xl mx-auto px-6 py-4 flex items-center gap-4">
+            <button onClick={() => setActivePlugin(null)}
+              className="flex items-center gap-2 text-white/40 hover:text-white transition-colors text-sm group">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                className="group-hover:-translate-x-0.5 transition-transform">
+                <path d="M19 12H5M12 5l-7 7 7 7" />
+              </svg>
+              Plugins
+            </button>
+            <span className="text-white/20">/</span>
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-md bg-[rgba(94,106,210,0.15)] border border-[rgba(94,106,210,0.25)] flex items-center justify-center">
+                <LinearLogoIcon size={14} />
+              </div>
+              <span className="text-white font-semibold text-sm">{activePlugin.name}</span>
+              {activePlugin.isConfigured() && (
+                <span className="badge-connected px-2 py-0.5 rounded-full text-xs font-semibold">Connected</span>
+              )}
+            </div>
+          </div>
         </div>
-        <div className="flex-1 max-w-2xl w-full mx-auto">
+        {/* Plugin panel content */}
+        <div className="relative z-10 max-w-5xl mx-auto">
           <PanelComponent onClose={() => setActivePlugin(null)} />
         </div>
       </div>
@@ -32,132 +64,175 @@ export function PluginsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white">
-      <nav className="border-b border-white/10 backdrop-blur-md bg-white/5">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <a href="/" className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
-            WatchParty
-          </a>
-          <div className="flex gap-6">
-            <a href="/" className="text-white/80 hover:text-white transition-colors text-sm">Home</a>
-            <a href="/discover" className="text-white/80 hover:text-white transition-colors text-sm">Discover</a>
-            <a href="/create" className="text-white/80 hover:text-white transition-colors text-sm">Create Party</a>
-            <a href="/plugins" className="text-white font-semibold transition-colors text-sm">Plugins</a>
+    <div className="relative min-h-screen bg-[#050511] text-white">
+      <Aurora />
+
+      {/* Navbar */}
+      <nav className="relative z-10 sticky top-0 border-b border-white/[0.06] backdrop-blur-2xl"
+        style={{ background: "rgba(5,5,17,0.72)" }}>
+        <div className="max-w-7xl mx-auto px-6 py-3.5 flex items-center justify-between">
+          <Link to="/" className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/30">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+                <polygon points="23 7 16 12 23 17 23 7" /><rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+              </svg>
+            </div>
+            <span className="text-lg font-bold text-gradient-static">WatchParty</span>
+          </Link>
+          <div className="flex items-center gap-0.5">
+            {[{ to: "/", label: "Home" }, { to: "/discover", label: "Discover" }, { to: "/create", label: "Create Party" }, { to: "/plugins", label: "Plugins" }]
+              .map((link) => (
+                <Link key={link.to} to={link.to}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                    link.to === "/plugins" ? "text-white bg-white/[0.09]" : "text-white/50 hover:text-white hover:bg-white/[0.05]"
+                  }`}>
+                  {link.label}
+                </Link>
+              ))}
           </div>
+          <Link to="/create" className="btn-primary px-4 py-2 rounded-xl text-sm">+ Create Party</Link>
         </div>
       </nav>
 
-      <main className="max-w-4xl mx-auto px-6 py-12">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2">Plugins</h1>
-          <p className="text-white/50 text-lg">
-            Extend your watch party experience with integrations.
-          </p>
-        </div>
+      <main className="relative z-10 max-w-5xl mx-auto px-6 py-16">
+        {/* Header */}
+        <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.55 }}
+          className="mb-14">
+          <p className="text-xs font-semibold text-violet-400 uppercase tracking-widest mb-3">Integrations</p>
+          <h1 className="text-6xl font-black text-white mb-3">Plugins</h1>
+          <p className="text-white/40 text-xl">Supercharge your watch parties with your favourite tools.</p>
+        </motion.div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {plugins.map((plugin) => (
-            <PluginCard
-              key={plugin.id}
-              plugin={plugin}
-              onOpen={() => setActivePlugin(plugin)}
-              onConfigure={() => setShowSettings(plugin)}
-            />
-          ))}
-        </div>
-
-        {plugins.length === 0 && (
-          <div className="text-center py-20 text-white/30">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" className="mx-auto mb-4">
-              <path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5l6.74-6.76zM16 8L2 22M17.5 15H9" />
-            </svg>
-            <p>No plugins installed</p>
+        {/* Installed plugins */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1, duration: 0.55 }} className="mb-16">
+          <h2 className="text-xs font-semibold text-white/30 uppercase tracking-widest mb-5">Available</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {plugins.map((plugin, i) => (
+              <PluginCard key={plugin.id} plugin={plugin} index={i}
+                onOpen={() => setActivePlugin(plugin)}
+                onConfigure={() => setShowSettings(plugin)} />
+            ))}
           </div>
-        )}
+        </motion.div>
+
+        {/* Coming soon */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2, duration: 0.55 }}>
+          <h2 className="text-xs font-semibold text-white/30 uppercase tracking-widest mb-5">Coming Soon</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {COMING_SOON.map((p, i) => (
+              <motion.div key={p.name}
+                initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.25 + i * 0.08, duration: 0.5 }}
+                className="glass rounded-2xl p-5 opacity-50 cursor-not-allowed">
+                <div className="flex items-start gap-4">
+                  <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${p.color} flex items-center justify-center text-2xl flex-shrink-0 opacity-60`}>
+                    {p.icon}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-bold text-white/70">{p.name}</span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-white/8 border border-white/10 text-white/40">
+                        Coming soon
+                      </span>
+                    </div>
+                    <p className="text-sm text-white/30">{p.desc}</p>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </motion.div>
       </main>
 
-      {showSettings && (
-        <showSettings.settingsComponent
-          onSave={(_config: PluginConfig) => setShowSettings(null)}
-          onCancel={() => setShowSettings(null)}
-        />
-      )}
+      {/* Settings modal */}
+      <AnimatePresence>
+        {showSettings && (
+          <showSettings.settingsComponent
+            onSave={(_config: PluginConfig) => setShowSettings(null)}
+            onCancel={() => setShowSettings(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
-function PluginCard({
-  plugin,
-  onOpen,
-  onConfigure,
-}: {
+function PluginCard({ plugin, index, onOpen, onConfigure }: {
   plugin: Plugin;
+  index: number;
   onOpen: () => void;
   onConfigure: () => void;
 }) {
   const configured = plugin.isConfigured();
 
   return (
-    <div className="p-5 rounded-2xl bg-white/5 border border-white/10 hover:border-white/20 backdrop-blur-sm transition-all">
+    <motion.div
+      initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.1, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+      className="glass glass-hover rounded-2xl p-6 group relative overflow-hidden"
+    >
+      {/* Subtle gradient top border */}
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[rgba(94,106,210,0.5)] to-transparent" />
+
       <div className="flex items-start gap-4">
-        <div className="w-12 h-12 rounded-xl bg-[#5e6ad2]/15 border border-[#5e6ad2]/30 flex items-center justify-center flex-shrink-0">
-          <LinearLogoMedium />
+        <div className="relative flex-shrink-0">
+          <div className="w-14 h-14 rounded-2xl bg-[rgba(94,106,210,0.1)] border border-[rgba(94,106,210,0.2)] flex items-center justify-center
+            group-hover:border-[rgba(94,106,210,0.4)] transition-all duration-300">
+            <LinearLogoIcon size={28} />
+          </div>
+          {configured && (
+            <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-[#050511] animate-pulse" />
+          )}
         </div>
+
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <h3 className="font-semibold text-white">{plugin.name}</h3>
-            <span className="text-xs text-white/30">v{plugin.version}</span>
+            <h3 className="font-bold text-white text-lg">{plugin.name}</h3>
+            <span className="text-xs text-white/25 font-mono">v{plugin.version}</span>
             {configured && (
-              <span className="px-2 py-0.5 rounded-full bg-green-500/15 text-green-400 text-xs font-medium">
-                Connected
-              </span>
+              <span className="badge-connected px-2.5 py-0.5 rounded-full text-xs font-semibold">Connected</span>
             )}
           </div>
-          <p className="text-sm text-white/50 leading-relaxed">{plugin.description}</p>
+          <p className="text-sm text-white/45 leading-relaxed mb-4">{plugin.description}</p>
+
+          {/* Capabilities */}
+          <ul className="space-y-1.5 mb-5">
+            {["View assigned issues", "Create issues from a party", "Link issues to sessions"].map((cap) => (
+              <li key={cap} className="flex items-center gap-2 text-xs text-white/40">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-[#5e6ad2] flex-shrink-0">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+                {cap}
+              </li>
+            ))}
+          </ul>
+
+          {/* Actions */}
+          <div className="flex gap-2">
+            {configured ? (
+              <>
+                <button onClick={onOpen} className="btn-linear flex-1 py-2.5 rounded-xl text-sm">
+                  Open Plugin
+                </button>
+                <button onClick={onConfigure}
+                  className="btn-ghost w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                  title="Settings">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="3" />
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                  </svg>
+                </button>
+              </>
+            ) : (
+              <button onClick={onConfigure} className="btn-ghost flex-1 py-2.5 rounded-xl text-sm border-[rgba(94,106,210,0.3)] hover:border-[rgba(94,106,210,0.5)] hover:text-[#7b84e3]">
+                Connect Linear →
+              </button>
+            )}
+          </div>
         </div>
       </div>
-
-      <div className="flex gap-2 mt-4">
-        {configured ? (
-          <button
-            onClick={onOpen}
-            className="flex-1 py-2 rounded-xl bg-[#5e6ad2] hover:bg-[#6b78e5] text-white text-sm font-medium transition-colors"
-          >
-            Open
-          </button>
-        ) : (
-          <button
-            onClick={onConfigure}
-            className="flex-1 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white text-sm font-medium transition-colors border border-white/10"
-          >
-            Connect
-          </button>
-        )}
-        {configured && (
-          <button
-            onClick={onConfigure}
-            className="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/50 hover:text-white/80 text-sm transition-colors border border-white/10"
-            title="Settings"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="3" />
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-            </svg>
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function LinearLogoMedium() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M1.22541 61.5228C0.14298 59.0595 0.727634 56.7297 1.81006 54.9301L25.6391 78.7591C23.8395 79.8415 21.5097 80.4261 19.0464 79.3437L1.22541 61.5228Z" fill="#5E6AD2" />
-      <path d="M9.15723 72.9222L27.0781 90.8431C28.6405 92.4055 30.5784 92.9489 32.4247 92.9489L7.07173 67.5959C7.07173 69.4422 7.61519 71.3801 9.15723 72.9222Z" fill="#5E6AD2" />
-      <path d="M14.8712 78.6361L21.3641 85.1291L64.0435 41.8577C67.7949 38.1062 68.587 32.3872 65.7 28.0364L14.8712 78.6361Z" fill="#5E6AD2" />
-      <path d="M28.6898 92.4558L35.1827 98.9488C39.5336 96.0618 43.8844 91.711 47.6358 87.9594L100 35.5953C96.213 40.334 92.8633 44.8966 90.1686 50.4228L71.7534 31.0763C77.2795 28.3816 81.8421 25.0319 86.5809 21.2449L34.2168 73.6091C30.4654 77.3605 26.8062 81.6803 23.9192 86.0312C25.5728 88.1677 27.2264 90.4143 28.6898 92.4558Z" fill="#5E6AD2" />
-      <path d="M44.6108 8.29285C49.3496 4.50588 53.9122 1.15614 58.6509 -1.53863e-05L6.28691 52.3641C5.13566 57.1028 3.78644 61.6654 0 66.4041L52.3641 14.04C47.6253 11.1529 41.9063 9.94547 44.6108 8.29285Z" fill="#5E6AD2" />
-    </svg>
+    </motion.div>
   );
 }
