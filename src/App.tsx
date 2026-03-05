@@ -1,4 +1,9 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import {
+  WRAPPER_BRIDGE_VERSION,
+  buildInjectableBridgeScript,
+  getWrapperConfig,
+} from "./lib/wrapperBridge";
 
 type Service = {
   id: string;
@@ -58,6 +63,11 @@ type Room = {
     thumbnail: string | null;
     pickedAt: string;
     pickedBy: string;
+    wrapper?: {
+      serviceId: string;
+      bridgeVersion: string;
+      bridgeType: string;
+    };
   };
   roomTier?: "free" | "premium";
   participantLimit?: number;
@@ -257,6 +267,7 @@ export default function App() {
   const [chatDraft, setChatDraft] = useState("");
   const [isVoiceEnabled, setIsVoiceEnabled] = useState(false);
   const [voiceConsentAccepted, setVoiceConsentAccepted] = useState(false);
+  const [bridgeCopied, setBridgeCopied] = useState(false);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
@@ -278,6 +289,7 @@ export default function App() {
     setSelectedContent(null);
     setBrowserSection("catalog");
     setBrowserAddress(SERVICE_HOME[selectedServiceId] ?? "https://www.google.com");
+    setBridgeCopied(false);
   }, [selectedServiceId]);
 
   useEffect(() => {
@@ -302,6 +314,14 @@ export default function App() {
   const browserCatalog = useMemo(
     () => CONTENT_LIBRARY[selectedServiceId] ?? makeGenericContent(serviceForStart),
     [selectedServiceId, serviceForStart],
+  );
+  const wrapperConfig = useMemo(
+    () => getWrapperConfig(selectedServiceId),
+    [selectedServiceId],
+  );
+  const injectableBridgeScript = useMemo(
+    () => buildInjectableBridgeScript(wrapperConfig),
+    [wrapperConfig],
   );
 
   const currentUser = useMemo(
@@ -414,6 +434,8 @@ export default function App() {
           contentKind: selectedContent.kind,
           contentUrl: selectedContent.url,
           contentThumbnail: selectedContent.thumbnail,
+          wrapperServiceId: selectedServiceId,
+          wrapperBridgeVersion: WRAPPER_BRIDGE_VERSION,
         }),
       });
       const data = await response.json();
@@ -587,6 +609,12 @@ export default function App() {
     }
     await navigator.clipboard.writeText(`${window.location.origin}/room/${activeRoom.code}`);
     setStatusMessage("Invite copied.");
+  };
+
+  const onCopyBridgeScript = async () => {
+    await navigator.clipboard.writeText(injectableBridgeScript);
+    setBridgeCopied(true);
+    setStatusMessage("Injectable WebView bridge script copied.");
   };
 
   const startServiceIsNetflix = selectedServiceId === "netflix";
@@ -783,6 +811,27 @@ export default function App() {
               </button>
             </div>
 
+            <div className="wrapper-core">
+              <p>
+                Wrapper core: <strong>{wrapperConfig.serviceId}</strong> | Bridge v
+                {WRAPPER_BRIDGE_VERSION}
+              </p>
+              <p className="muted">
+                Injected into WebView to hook HTML5 video events (play/pause/seek/time) and
+                accept remote sync commands.
+              </p>
+              <div className="wrapper-actions">
+                <button type="button" className="ghost" onClick={onCopyBridgeScript}>
+                  Copy injectable bridge
+                </button>
+                <span>{bridgeCopied ? "Copied" : "Not copied"}</span>
+              </div>
+              <details>
+                <summary>Bridge preview</summary>
+                <pre>{injectableBridgeScript.slice(0, 520)}...</pre>
+              </details>
+            </div>
+
             {browserSection === "catalog" && (
               <div className="browser-catalog">
                 {browserCatalog.map((item) => (
@@ -868,6 +917,12 @@ export default function App() {
                 {joinRoomPreview.selectedContent?.title && (
                   <p>
                     Selected title: <strong>{joinRoomPreview.selectedContent.title}</strong>
+                  </p>
+                )}
+                {joinRoomPreview.selectedContent?.wrapper && (
+                  <p>
+                    Wrapper: {joinRoomPreview.selectedContent.wrapper.bridgeType} v
+                    {joinRoomPreview.selectedContent.wrapper.bridgeVersion}
                   </p>
                 )}
                 {joinService?.signupUrl && (
@@ -979,6 +1034,12 @@ export default function App() {
                 <p>
                   Lobby title: <strong>{activeRoom.selectedContent.title}</strong>
                 </p>
+                {activeRoom.selectedContent.wrapper && (
+                  <p className="muted">
+                    Wrapper bridge: {activeRoom.selectedContent.wrapper.bridgeType} v
+                    {activeRoom.selectedContent.wrapper.bridgeVersion}
+                  </p>
+                )}
                 {activeRoom.selectedContent.thumbnail && (
                   <img
                     src={activeRoom.selectedContent.thumbnail}

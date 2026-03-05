@@ -447,6 +447,8 @@ const server = http.createServer(async (req, res) => {
       const contentKind = String(body.contentKind ?? "").trim();
       const contentUrl = String(body.contentUrl ?? "").trim();
       const contentThumbnail = String(body.contentThumbnail ?? "").trim();
+      const wrapperServiceId = String(body.wrapperServiceId ?? serviceId).trim();
+      const wrapperBridgeVersion = String(body.wrapperBridgeVersion ?? "1.0.0").trim();
       const service = serviceById.get(serviceId);
       const participantLimit = roomTier === "premium" ? 10 : 3;
 
@@ -515,6 +517,11 @@ const server = http.createServer(async (req, res) => {
           thumbnail: contentThumbnail || null,
           pickedAt: new Date().toISOString(),
           pickedBy: hostName,
+          wrapper: {
+            serviceId: wrapperServiceId || serviceId,
+            bridgeVersion: wrapperBridgeVersion || "1.0.0",
+            bridgeType: "html5_video_js_bridge",
+          },
         },
         roomTier,
         participantLimit,

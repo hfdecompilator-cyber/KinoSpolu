@@ -21,6 +21,12 @@ Service catalog now includes local platforms in addition to global services:
 
 The UI marks CZ/SK-ready services and supports affiliate-ready signup links in join flow.
 
+## Injectable wrapper bridge
+
+The in-app browser now includes a copyable JavaScript bridge that is meant to run inside a mobile WebView wrapper.
+It hooks HTML5 video events and accepts remote play/pause/seek commands without handling media bytes directly.
+See `CUSTOM_WEB_WRAPPERS.md` for implementation details.
+
 For Netflix, verification checks a real session against `https://www.netflix.com/browse`.
 For non-Netflix services, this example records participant attestation + account reference (upgrade to OAuth/provider entitlement checks in production).
 

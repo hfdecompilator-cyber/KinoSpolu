@@ -316,6 +316,41 @@ button.ghost.danger {
   background: linear-gradient(90deg, #0284c7, #0369a1);
 }
 
+.wrapper-core {
+  margin-top: 0.75rem;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 12px;
+  padding: 0.7rem;
+  background: rgba(2, 6, 23, 0.58);
+}
+
+.wrapper-core p {
+  margin: 0.2rem 0;
+}
+
+.wrapper-actions {
+  margin-top: 0.4rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.wrapper-core details {
+  margin-top: 0.5rem;
+}
+
+.wrapper-core pre {
+  margin: 0.5rem 0 0;
+  max-height: 140px;
+  overflow: auto;
+  border-radius: 10px;
+  padding: 0.55rem;
+  background: #020617;
+  border: 1px solid #334155;
+  color: #93c5fd;
+  font-size: 0.75rem;
+}
+
 .browser-catalog {
   margin-top: 0.8rem;
   display: grid;
