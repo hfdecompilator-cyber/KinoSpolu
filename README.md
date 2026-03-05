@@ -59,3 +59,10 @@ This project is built with:
 ## How can I deploy this project?
 
 Simply open [OnSpace]() and click on Share -> Publish.
+
+## Cursor: Linear plugin (MCP)
+
+This repo includes a project-level Cursor MCP configuration at `.cursor/mcp.json` that registers a `linear` server.
+
+- Set `LINEAR_API_KEY` in your environment (or in Cursor Cloud Agent Secrets) before using the Linear tools.
+- The MCP server runs via `npx -y @ibraheem4/linear-mcp`.
