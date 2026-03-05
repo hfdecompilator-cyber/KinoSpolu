@@ -34,13 +34,15 @@ and simplicity, but with:
 
 ═══════════════════════════════════════════════════════════════════════════════
 
-🔌 HOW TO TEST STREAMING SERVICES:
+🔌 NETFLIX TESTING (REALISTIC FLOW):
 
-1. Click streaming service logos in top navbar
-2. Each will "simulate" OAuth login
-3. Status will save in localStorage
-4. Try creating a watch party with a service
-5. Invite friends to watch together
+Netflix does not offer public OAuth for third‑party apps. This project does NOT ask for Netflix credentials.
+
+1. Run `npm run dev:all`
+2. Create a room in the web app (http://localhost:8080)
+3. Load the Chrome extension from `extension/`
+4. Open `netflix.com` and sign in normally
+5. Use the extension popup to connect your Netflix tab to the room
 
 ═══════════════════════════════════════════════════════════════════════════════
 
@@ -93,13 +95,8 @@ PROFILE
 
 🔐 AUTHENTICATION:
 
-Currently uses mock auth for testing.
-
-To add real auth:
-1. Connect Supabase (credentials in .env)
-2. Implement OAuth with providers
-3. Real JWT tokens
-4. Session management
+- **Netflix**: handled by Netflix itself (user signs in on `netflix.com`). This app never sees Netflix passwords/cookies. For details see `NETFLIX_SYNC.md`.
+- **App users**: not implemented (optional). If you want user accounts for your own app, add Supabase/Auth0/etc for *your* app, not Netflix.
 
 ═══════════════════════════════════════════════════════════════════════════════
 

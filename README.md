@@ -56,6 +56,10 @@ This project is built with:
 - shadcn-ui
 - Tailwind CSS
 
+## Netflix authentication / watch rooms
+
+Netflix does not provide a public OAuth API for third-party watch-party apps. This repo implements a practical alternative: a **room** + a **Chrome extension** that links a logged-in `netflix.com` tab to the room for play/pause/seek sync. See `NETFLIX_SYNC.md`.
+
 ## How can I deploy this project?
 
 Simply open [OnSpace]() and click on Share -> Publish.

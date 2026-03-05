@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "StreamHub Netflix Room Link",
+  "version": "0.1.0",
+  "description": "Links a logged-in Netflix tab to a StreamHub room for playback sync.",
+  "permissions": ["storage", "activeTab"],
+  "host_permissions": ["https://www.netflix.com/*", "https://netflix.com/*", "http://netflix.com/*"],
+  "action": {
+    "default_title": "StreamHub",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.netflix.com/*", "https://netflix.com/*", "http://netflix.com/*"],
+      "js": ["content_script.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
+

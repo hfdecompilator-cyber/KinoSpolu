@@ -22,9 +22,9 @@ Your StreamHub watch party app is **complete, tested, and ready to deploy to One
 
 ### 👉 I Want to Test Locally First (5 minutes)
 1. Read: **QUICK_START.md** (setup guide)
-2. Run: `npm run dev`
+2. Run: `npm run dev:all`
 3. Open: http://localhost:8080
-4. Test: Create party, join by code, play video
+4. Test: Create room, join by code, link Netflix tab with extension
 
 ### 👉 I Want Everything (Read All Docs)
 1. Start with: **DOCUMENTATION_INDEX.md**
@@ -237,10 +237,10 @@ Share with friends and they can use it immediately!
 A: Yes! Run `npm run dev` → http://localhost:8080
 
 **Q: Do I need a backend?**  
-A: Not required. Frontend works standalone. Backend adds real-time sync (optional Phase 2).
+A: For real sync, you need a realtime transport. This repo includes a tiny local WebSocket sync server (`npm run dev:server`). For “Netflix auth”, see **NETFLIX_SYNC.md**.
 
 **Q: How do I add real video sync?**  
-A: That's Phase 2 - requires WebSocket server + Supabase setup.
+A: This repo now includes a minimal WebSocket sync server + a Netflix tab extension. See **NETFLIX_SYNC.md**.
 
 **Q: Can I add voice/video calls?**  
 A: Yes! WebRTC integration (daily.co, Twilio) - Phase 2.

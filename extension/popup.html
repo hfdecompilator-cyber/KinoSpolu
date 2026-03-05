@@ -1,0 +1,112 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>StreamHub</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        background: #0b1220;
+        color: #fff;
+        width: 320px;
+      }
+      .wrap {
+        padding: 12px;
+      }
+      .title {
+        font-weight: 700;
+        letter-spacing: -0.02em;
+      }
+      .muted {
+        color: rgba(255, 255, 255, 0.65);
+        font-size: 12px;
+        line-height: 1.4;
+      }
+      label {
+        display: block;
+        margin-top: 10px;
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.7);
+      }
+      input {
+        width: 100%;
+        box-sizing: border-box;
+        margin-top: 4px;
+        padding: 8px 10px;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: rgba(0, 0, 0, 0.35);
+        color: #fff;
+        outline: none;
+        font-size: 13px;
+      }
+      input:focus {
+        border-color: rgba(255, 255, 255, 0.2);
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+        margin-top: 12px;
+      }
+      button {
+        flex: 1;
+        padding: 10px 12px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: rgba(255, 255, 255, 0.1);
+        color: #fff;
+        cursor: pointer;
+        font-weight: 600;
+      }
+      button.primary {
+        background: #7c3aed;
+        border-color: rgba(0, 0, 0, 0);
+      }
+      .status {
+        margin-top: 10px;
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.7);
+      }
+      .pill {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.1);
+        color: rgba(255, 255, 255, 0.85);
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 11px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="title">StreamHub</div>
+      <div class="muted">Open a Netflix tab, then link it to your room.</div>
+
+      <label>WebSocket URL</label>
+      <input id="wsUrl" placeholder="ws://localhost:8787" />
+
+      <label>Room code</label>
+      <input id="roomCode" placeholder="ABC123" />
+
+      <label>Host key (optional)</label>
+      <input id="hostKey" placeholder="paste if you want control" />
+
+      <label>Display name</label>
+      <input id="displayName" placeholder="Netflix Host" />
+
+      <div class="row">
+        <button id="disconnect">Disconnect</button>
+        <button id="connect" class="primary">Connect</button>
+      </div>
+
+      <div class="status">
+        Status: <span class="pill" id="status">idle</span>
+      </div>
+    </div>
+    <script src="popup.js"></script>
+  </body>
+</html>
+
