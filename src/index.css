@@ -1,0 +1,42 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 17 24 39;
+    --foreground: 249 250 251;
+    --primary: 124 58 237;
+    --primary-foreground: 255 255 255;
+    --border: 55 65 81;
+    --surface: 31 41 55;
+    --muted: 75 85 99;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-white antialiased min-h-screen;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-surface/30 rounded;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-border rounded hover:bg-gray-600;
+}
+
+/* Video player styling */
+video {
+  @apply w-full h-full object-contain;
+}

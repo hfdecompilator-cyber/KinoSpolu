@@ -1,4 +1,37 @@
-# Welcome to your OnSpace project
+# WatchParty – Watch Together, Stay Connected
+
+A HEARO-style watch party app with **synced playback**, **live chat**, and **voice chat**. Create parties, share a code, and watch together in real time.
+
+## Features
+
+- **Simple sign-in**: Magic link, Google OAuth, or email/password
+- **Create & join parties**: 3-step wizard, join by 6-character code
+- **Synced video**: HLS support, shared playback controls
+- **Live chat**: Real-time messages via Supabase Realtime
+- **Voice chat**: WebRTC-based voice (requires Supabase for signaling)
+- **Demo mode**: Works without Supabase for testing the UI
+
+## Quick Start
+
+```sh
+npm install
+npm run dev
+```
+
+Open http://localhost:8080
+
+## Supabase Setup
+
+For full functionality (auth, real-time chat, voice, persistence):
+
+1. Create a project at [supabase.com](https://supabase.com)
+2. Run `supabase/migrations/00001_initial_schema.sql` in the SQL Editor
+3. Enable Realtime for `party_messages` (Database → Replication)
+4. Copy `.env.example` to `.env` and add your `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`
+
+See **SUPABASE_SETUP.md** for detailed steps.
+
+---
 
 ## How can I edit this code?
 
