@@ -13,10 +13,10 @@ export default function App() {
     mode,
     loading,
     busy,
+    lastEmail,
     authMessage,
     canUseLiveMode,
-    signInWithPassword,
-    signUpWithPassword,
+    quickAuth,
     sendMagicLink,
     signInWithGoogle,
     continueAsGuest,
@@ -177,9 +177,9 @@ export default function App() {
         <AuthPanel
           canUseLiveMode={canUseLiveMode}
           authBusy={busy}
+          initialEmail={lastEmail}
           authMessage={authMessage}
-          onSignInWithPassword={signInWithPassword}
-          onSignUpWithPassword={signUpWithPassword}
+          onQuickAuth={quickAuth}
           onSendMagicLink={sendMagicLink}
           onGoogleSignIn={signInWithGoogle}
           onContinueAsGuest={continueAsGuest}
