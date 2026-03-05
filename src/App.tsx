@@ -34,11 +34,13 @@ export default function App() {
       const { data, error } = await supabase
         .from("parties")
         .insert({
-          code,
-          title: title.trim(),
+          name: title.trim(),
           video_url: safeVideoUrl(videoUrl),
-          host_user_id: user.id,
+          video_title: title.trim(),
+          host_id: user.id,
+          party_code: code,
           host_name: user.name,
+          is_active: true,
         })
         .select("*")
         .single();
@@ -50,11 +52,11 @@ export default function App() {
       }
 
       const party: Party = {
-        code: data.code,
-        title: data.title,
+        code: data.party_code,
+        title: data.name,
         videoUrl: data.video_url,
-        hostUserId: data.host_user_id,
-        hostName: data.host_name,
+        hostUserId: data.host_id,
+        hostName: data.host_name || user.name || "Host",
         createdAt: data.created_at,
       };
       setActiveParty(party);
@@ -87,7 +89,7 @@ export default function App() {
     const { data, error } = await supabase
       .from("parties")
       .select("*")
-      .eq("code", cleanCode)
+      .eq("party_code", cleanCode)
       .maybeSingle();
 
     if (error) {
@@ -101,11 +103,11 @@ export default function App() {
     }
 
     const party: Party = {
-      code: data.code,
-      title: data.title,
+      code: data.party_code,
+      title: data.name,
       videoUrl: data.video_url,
-      hostUserId: data.host_user_id,
-      hostName: data.host_name,
+      hostUserId: data.host_id,
+      hostName: data.host_name || "Host",
       createdAt: data.created_at,
     };
     setActiveParty(party);
