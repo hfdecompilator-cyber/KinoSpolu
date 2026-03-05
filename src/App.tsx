@@ -5,6 +5,17 @@ type Service = {
   name: string;
 };
 
+type ContentItem = {
+  id: string;
+  title: string;
+  kind: "movie" | "show" | "youtube";
+  serviceId: string;
+  description: string;
+  url: string;
+  thumbnail: string;
+  embedUrl?: string;
+};
+
 type RoomParticipant = {
   id: string;
   name: string;
@@ -38,6 +49,14 @@ type Room = {
   createdAt: string;
   partyLink: string;
   legalNotice: string;
+  selectedContent?: {
+    title: string;
+    kind: string;
+    url: string;
+    thumbnail: string | null;
+    pickedAt: string;
+    pickedBy: string;
+  };
   participants: RoomParticipant[];
   playback: RoomPlayback;
   messages: RoomMessage[];
@@ -60,6 +79,92 @@ const SERVICE_ICONS: Record<string, string> = {
   twitch: "TW",
 };
 
+const SERVICE_HOME: Record<string, string> = {
+  netflix: "https://www.netflix.com/browse",
+  disney_plus: "https://www.disneyplus.com/home",
+  hulu: "https://www.hulu.com/hub/home",
+  prime_video: "https://www.primevideo.com/storefront/home",
+  hbo_max: "https://play.max.com/",
+  plex: "https://watch.plex.tv/",
+  paramount_plus: "https://www.paramountplus.com/home/",
+  youtube: "https://www.youtube.com/",
+  crunchyroll: "https://www.crunchyroll.com/",
+  google_drive: "https://drive.google.com/",
+  pluto_tv: "https://pluto.tv/",
+  tubi: "https://tubitv.com/",
+  youtube_tv: "https://tv.youtube.com/",
+  twitch: "https://www.twitch.tv/",
+};
+
+const CONTENT_LIBRARY: Record<string, ContentItem[]> = {
+  netflix: [
+    {
+      id: "n1",
+      title: "Sci‑Fi Night Pick",
+      kind: "movie",
+      serviceId: "netflix",
+      description: "Future city thriller for a synchronized watch party.",
+      url: "https://www.netflix.com/browse",
+      thumbnail:
+        "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=800&auto=format&fit=crop",
+    },
+    {
+      id: "n2",
+      title: "Mystery Series Episode",
+      kind: "show",
+      serviceId: "netflix",
+      description: "Perfect for episodic co-watch with chat reactions.",
+      url: "https://www.netflix.com/browse",
+      thumbnail:
+        "https://images.unsplash.com/photo-1574267432553-4b4628081c31?w=800&auto=format&fit=crop",
+    },
+  ],
+  youtube: [
+    {
+      id: "y1",
+      title: "Lofi coding stream",
+      kind: "youtube",
+      serviceId: "youtube",
+      description: "Lightweight test content for party sync.",
+      url: "https://www.youtube.com/watch?v=jfKfPfyJRdk",
+      embedUrl: "https://www.youtube.com/embed/jfKfPfyJRdk",
+      thumbnail: "https://img.youtube.com/vi/jfKfPfyJRdk/hqdefault.jpg",
+    },
+    {
+      id: "y2",
+      title: "NASA live stream",
+      kind: "youtube",
+      serviceId: "youtube",
+      description: "Live feed for watch-party lobby testing.",
+      url: "https://www.youtube.com/watch?v=21X5lGlDOfg",
+      embedUrl: "https://www.youtube.com/embed/21X5lGlDOfg",
+      thumbnail: "https://img.youtube.com/vi/21X5lGlDOfg/hqdefault.jpg",
+    },
+  ],
+  hulu: [
+    {
+      id: "h1",
+      title: "Comedy Night Queue",
+      kind: "show",
+      serviceId: "hulu",
+      description: "Short episodes with perfect chat pacing.",
+      url: "https://www.hulu.com/hub/home",
+      thumbnail:
+        "https://images.unsplash.com/photo-1522869635100-9f4c5e86aa37?w=800&auto=format&fit=crop",
+    },
+    {
+      id: "h2",
+      title: "Weekend Thriller",
+      kind: "movie",
+      serviceId: "hulu",
+      description: "Long-form film for group movie night.",
+      url: "https://www.hulu.com/hub/home",
+      thumbnail:
+        "https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=800&auto=format&fit=crop",
+    },
+  ],
+};
+
 const tokenPreview = (value: string) =>
   value.length <= 10 ? value : `${value.slice(0, 6)}...${value.slice(-4)}`;
 
@@ -67,6 +172,35 @@ const formatClock = (seconds: number) => {
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
   return `${mins}:${String(secs).padStart(2, "0")}`;
+};
+
+const makeGenericContent = (service: Service | null): ContentItem[] => {
+  const id = service?.id ?? "service";
+  const name = service?.name ?? "Service";
+  const baseUrl = SERVICE_HOME[id] ?? "https://www.google.com";
+
+  return [
+    {
+      id: `${id}-g1`,
+      title: `${name} Featured Movie`,
+      kind: "movie",
+      serviceId: id,
+      description: "Trending title ready to open in provider tab.",
+      url: baseUrl,
+      thumbnail:
+        "https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?w=800&auto=format&fit=crop",
+    },
+    {
+      id: `${id}-g2`,
+      title: `${name} Series Premiere`,
+      kind: "show",
+      serviceId: id,
+      description: "Episode pick for a synchronized lobby launch.",
+      url: baseUrl,
+      thumbnail:
+        "https://images.unsplash.com/photo-1485846234645-a62644f84728?w=800&auto=format&fit=crop",
+    },
+  ];
 };
 
 export default function App() {
@@ -84,6 +218,9 @@ export default function App() {
   const [startAttestationAccepted, setStartAttestationAccepted] = useState(false);
   const [isVerifyingStartAccess, setIsVerifyingStartAccess] = useState(false);
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
+  const [selectedContent, setSelectedContent] = useState<ContentItem | null>(null);
+  const [browserSection, setBrowserSection] = useState<"catalog" | "preview">("catalog");
+  const [browserAddress, setBrowserAddress] = useState(SERVICE_HOME.netflix);
 
   const [joinCode, setJoinCode] = useState("");
   const [joinName, setJoinName] = useState("Guest");
@@ -114,14 +251,15 @@ export default function App() {
           setServices(data.services);
         }
       })
-      .catch(() => {
-        // Keep UI usable even if service list request fails once.
-      });
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
     setStartAccessToken("");
     setStartExpiresAt("");
+    setSelectedContent(null);
+    setBrowserSection("catalog");
+    setBrowserAddress(SERVICE_HOME[selectedServiceId] ?? "https://www.google.com");
   }, [selectedServiceId]);
 
   useEffect(() => {
@@ -133,13 +271,10 @@ export default function App() {
     () => services.find((entry) => entry.id === selectedServiceId) ?? null,
     [services, selectedServiceId],
   );
-  const serviceForJoin = useMemo(
-    () =>
-      services.find((entry) => entry.id === joinRoomPreview?.serviceId) ??
-      (joinRoomPreview
-        ? { id: joinRoomPreview.serviceId, name: joinRoomPreview.serviceName }
-        : null),
-    [services, joinRoomPreview],
+
+  const browserCatalog = useMemo(
+    () => CONTENT_LIBRARY[selectedServiceId] ?? makeGenericContent(serviceForStart),
+    [selectedServiceId, serviceForStart],
   );
 
   const currentUser = useMemo(
@@ -162,9 +297,7 @@ export default function App() {
       return;
     }
     const interval = window.setInterval(() => {
-      refreshRoom(activeRoom.code).catch(() => {
-        // ignore one polling tick
-      });
+      refreshRoom(activeRoom.code).catch(() => {});
     }, 2500);
     return () => window.clearInterval(interval);
   }, [activeRoom?.code]);
@@ -175,7 +308,6 @@ export default function App() {
     section: "start" | "join";
   }) => {
     const { serviceId, displayName, section } = params;
-
     const netflixId = section === "start" ? startNetflixId : joinNetflixId;
     const secureNetflixId =
       section === "start" ? startSecureNetflixId : joinSecureNetflixId;
@@ -199,12 +331,14 @@ export default function App() {
     if (!response.ok || !data.ok || !data.accessToken) {
       throw new Error(data.error ?? "Access verification failed.");
     }
-    return data as {
-      accessToken: string;
-      expiresAt: string;
-      legalNotice?: string;
-      note?: string;
-    };
+    return data as { accessToken: string; expiresAt: string; note?: string };
+  };
+
+  const onPickContent = (item: ContentItem) => {
+    setSelectedContent(item);
+    setBrowserAddress(item.url);
+    setBrowserSection("preview");
+    setStatusMessage(`Selected "${item.title}". Now create lobby.`);
   };
 
   const onVerifyStartAccess = async (event: FormEvent<HTMLFormElement>) => {
@@ -224,8 +358,7 @@ export default function App() {
     } catch (error) {
       setStartAccessToken("");
       setStartExpiresAt("");
-      const message = error instanceof Error ? error.message : "Access verification failed.";
-      setErrorMessage(message);
+      setErrorMessage(error instanceof Error ? error.message : "Access verification failed.");
     } finally {
       setIsVerifyingStartAccess(false);
     }
@@ -233,6 +366,10 @@ export default function App() {
 
   const onCreateRoom = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!selectedContent) {
+      setErrorMessage("Pick a movie/show/video in the in-app browser first.");
+      return;
+    }
     setErrorMessage("");
     setStatusMessage("");
     setIsCreatingRoom(true);
@@ -245,20 +382,23 @@ export default function App() {
           serviceId: selectedServiceId,
           roomName: roomName.trim(),
           hostName: hostName.trim(),
+          contentTitle: selectedContent.title,
+          contentKind: selectedContent.kind,
+          contentUrl: selectedContent.url,
+          contentThumbnail: selectedContent.thumbnail,
         }),
       });
       const data = await response.json();
       if (!response.ok || !data.ok || !data.room || !data.participantId) {
-        throw new Error(data.error ?? "Could not create room.");
+        throw new Error(data.error ?? "Could not create lobby.");
       }
       setActiveRoom(data.room as Room);
       setParticipantId(String(data.participantId));
       setJoinCode(String(data.room.code));
       setMode("join");
-      setStatusMessage(`Room created: ${data.room.code}. Invite your friends.`);
+      setStatusMessage(`Lobby created: ${data.room.code}`);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Could not create room.";
-      setErrorMessage(message);
+      setErrorMessage(error instanceof Error ? error.message : "Could not create lobby.");
     } finally {
       setIsCreatingRoom(false);
     }
@@ -282,9 +422,8 @@ export default function App() {
         `Loaded room ${data.room.code}. Verify ${data.room.serviceName} access to join.`,
       );
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Room not found.";
       setJoinRoomPreview(null);
-      setErrorMessage(message);
+      setErrorMessage(error instanceof Error ? error.message : "Room not found.");
     } finally {
       setIsLoadingJoinRoom(false);
     }
@@ -307,12 +446,11 @@ export default function App() {
       });
       setJoinAccessToken(data.accessToken);
       setJoinExpiresAt(data.expiresAt);
-      setStatusMessage(data.note ?? "Access verified.");
+      setStatusMessage(data.note ?? "Join access verified.");
     } catch (error) {
       setJoinAccessToken("");
       setJoinExpiresAt("");
-      const message = error instanceof Error ? error.message : "Access verification failed.";
-      setErrorMessage(message);
+      setErrorMessage(error instanceof Error ? error.message : "Access verification failed.");
     } finally {
       setIsVerifyingJoinAccess(false);
     }
@@ -342,10 +480,9 @@ export default function App() {
       }
       setActiveRoom(data.room as Room);
       setParticipantId(String(data.participantId));
-      setStatusMessage(`Joined room ${data.room.code}.`);
+      setStatusMessage(`Joined lobby ${data.room.code}`);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Could not join room.";
-      setErrorMessage(message);
+      setErrorMessage(error instanceof Error ? error.message : "Could not join room.");
     } finally {
       setIsJoiningRoom(false);
     }
@@ -371,8 +508,7 @@ export default function App() {
       }
       setActiveRoom(data.room as Room);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Playback update failed.";
-      setErrorMessage(message);
+      setErrorMessage(error instanceof Error ? error.message : "Playback update failed.");
     }
   };
 
@@ -395,8 +531,7 @@ export default function App() {
       setActiveRoom(data.room as Room);
       setChatDraft("");
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Message failed.";
-      setErrorMessage(message);
+      setErrorMessage(error instanceof Error ? error.message : "Message failed.");
     } finally {
       setIsSendingMessage(false);
     }
@@ -414,15 +549,14 @@ export default function App() {
     setActiveRoom(null);
     setParticipantId("");
     setIsVoiceEnabled(false);
-    setStatusMessage("Left room.");
+    setStatusMessage("Left lobby.");
   };
 
   const onCopyInvite = async () => {
     if (!activeRoom?.code) {
       return;
     }
-    const invite = `${window.location.origin}/room/${activeRoom.code}`;
-    await navigator.clipboard.writeText(invite);
+    await navigator.clipboard.writeText(`${window.location.origin}/room/${activeRoom.code}`);
     setStatusMessage("Invite copied.");
   };
 
@@ -448,15 +582,13 @@ export default function App() {
             Join
           </button>
         </div>
-
         <div className="premium-banner">
-          <strong>Unlock Premium</strong>
-          <span>Video chat, ad-free mode, and advanced rooms.</span>
+          <strong>Unlock Hearo Premium ✨</strong>
+          <span>Video chat, ad-free watch, and richer rooms.</span>
         </div>
-
         <h1>Start Watching</h1>
         <p className="muted">
-          Every participant must verify service access before they can join a room.
+          Pick content in the in-app browser, then launch into a synchronized lobby.
         </p>
         <div className="service-grid">
           {services.map((service) => (
@@ -476,101 +608,186 @@ export default function App() {
       </section>
 
       {mode === "start" && (
-        <section className="grid-two">
-          <article className="card">
-            <h2>Verify access for host</h2>
-            <p className="muted">
-              Selected service: <strong>{serviceForStart?.name ?? selectedServiceId}</strong>
-            </p>
-            <form className="form-grid" onSubmit={onVerifyStartAccess}>
-              <label>
-                Host name
-                <input
-                  value={hostName}
-                  onChange={(event) => setHostName(event.target.value)}
-                  required
-                />
-              </label>
-
-              {startServiceIsNetflix ? (
-                <>
-                  <label>
-                    NetflixId cookie
-                    <input
-                      value={startNetflixId}
-                      onChange={(event) => setStartNetflixId(event.target.value)}
-                      placeholder="NetflixId"
-                      required
-                    />
-                  </label>
-                  <label>
-                    SecureNetflixId cookie
-                    <input
-                      value={startSecureNetflixId}
-                      onChange={(event) => setStartSecureNetflixId(event.target.value)}
-                      placeholder="SecureNetflixId"
-                      required
-                    />
-                  </label>
-                </>
-              ) : (
-                <>
-                  <label>
-                    Account reference
-                    <input
-                      value={startAccountRef}
-                      onChange={(event) => setStartAccountRef(event.target.value)}
-                      placeholder="email or user handle"
-                      required
-                    />
-                  </label>
-                  <label className="checkbox-row">
-                    <input
-                      type="checkbox"
-                      checked={startAttestationAccepted}
-                      onChange={(event) =>
-                        setStartAttestationAccepted(event.target.checked)
-                      }
-                      required
-                    />
-                    I confirm I hold rights to watch this content on my own account.
-                  </label>
-                </>
+        <>
+          <section className="grid-two">
+            <article className="card">
+              <h2>Verify host access</h2>
+              <p className="muted">
+                Service: <strong>{serviceForStart?.name ?? selectedServiceId}</strong>
+              </p>
+              <form className="form-grid" onSubmit={onVerifyStartAccess}>
+                <label>
+                  Host name
+                  <input
+                    value={hostName}
+                    onChange={(event) => setHostName(event.target.value)}
+                    required
+                  />
+                </label>
+                {startServiceIsNetflix ? (
+                  <>
+                    <label>
+                      NetflixId cookie
+                      <input
+                        value={startNetflixId}
+                        onChange={(event) => setStartNetflixId(event.target.value)}
+                        required
+                      />
+                    </label>
+                    <label>
+                      SecureNetflixId cookie
+                      <input
+                        value={startSecureNetflixId}
+                        onChange={(event) => setStartSecureNetflixId(event.target.value)}
+                        required
+                      />
+                    </label>
+                  </>
+                ) : (
+                  <>
+                    <label>
+                      Account reference
+                      <input
+                        value={startAccountRef}
+                        onChange={(event) => setStartAccountRef(event.target.value)}
+                        required
+                      />
+                    </label>
+                    <label className="checkbox-row">
+                      <input
+                        type="checkbox"
+                        checked={startAttestationAccepted}
+                        onChange={(event) => setStartAttestationAccepted(event.target.checked)}
+                        required
+                      />
+                      I confirm I can legally watch this content on my own account.
+                    </label>
+                  </>
+                )}
+                <button type="submit" disabled={isVerifyingStartAccess}>
+                  {isVerifyingStartAccess ? "Verifying..." : "Verify access"}
+                </button>
+              </form>
+              {startAccessToken && (
+                <div className="notice success">
+                  <p>
+                    Token: <strong>{tokenPreview(startAccessToken)}</strong>
+                  </p>
+                  <p>Expires: {new Date(startExpiresAt).toLocaleString()}</p>
+                </div>
               )}
+            </article>
 
-              <button type="submit" disabled={isVerifyingStartAccess}>
-                {isVerifyingStartAccess ? "Verifying..." : "Verify access"}
+            <article className="card">
+              <h2>Create lobby</h2>
+              <p className="muted">Room can start only after access + content selection.</p>
+              <form className="form-grid" onSubmit={onCreateRoom}>
+                <label>
+                  Lobby name
+                  <input
+                    value={roomName}
+                    onChange={(event) => setRoomName(event.target.value)}
+                    required
+                  />
+                </label>
+                <button
+                  type="submit"
+                  disabled={!startAccessToken || !selectedContent || isCreatingRoom}
+                >
+                  {isCreatingRoom ? "Launching..." : "Launch Lobby"}
+                </button>
+              </form>
+              {selectedContent && (
+                <div className="notice info">
+                  <p>
+                    Picked: <strong>{selectedContent.title}</strong>
+                  </p>
+                  <p>Type: {selectedContent.kind}</p>
+                </div>
+              )}
+            </article>
+          </section>
+
+          <section className="card browser-shell">
+            <div className="browser-top">
+              <div className="browser-dots">
+                <span />
+                <span />
+                <span />
+              </div>
+              <div className="browser-address">{browserAddress}</div>
+            </div>
+            <div className="browser-tabs">
+              <button
+                type="button"
+                className={browserSection === "catalog" ? "browser-tab active" : "browser-tab"}
+                onClick={() => setBrowserSection("catalog")}
+              >
+                Browse titles
               </button>
-            </form>
+              <button
+                type="button"
+                className={browserSection === "preview" ? "browser-tab active" : "browser-tab"}
+                onClick={() => setBrowserSection("preview")}
+              >
+                Lobby preview
+              </button>
+            </div>
 
-            {startAccessToken && (
-              <div className="notice success">
-                <p>
-                  Access token: <strong>{tokenPreview(startAccessToken)}</strong>
-                </p>
-                <p>Expires: {new Date(startExpiresAt).toLocaleString()}</p>
+            {browserSection === "catalog" && (
+              <div className="browser-catalog">
+                {browserCatalog.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={selectedContent?.id === item.id ? "pick-card active" : "pick-card"}
+                    onClick={() => onPickContent(item)}
+                  >
+                    <img src={item.thumbnail} alt={item.title} />
+                    <div>
+                      <p>{item.title}</p>
+                      <span>{item.description}</span>
+                    </div>
+                  </button>
+                ))}
               </div>
             )}
-          </article>
 
-          <article className="card">
-            <h2>Create room</h2>
-            <p className="muted">Creation is blocked until host access is verified.</p>
-            <form className="form-grid" onSubmit={onCreateRoom}>
-              <label>
-                Room name
-                <input
-                  value={roomName}
-                  onChange={(event) => setRoomName(event.target.value)}
-                  required
-                />
-              </label>
-              <button type="submit" disabled={!startAccessToken || isCreatingRoom}>
-                {isCreatingRoom ? "Creating..." : "Create room"}
-              </button>
-            </form>
-          </article>
-        </section>
+            {browserSection === "preview" && (
+              <div className="browser-preview">
+                {!selectedContent ? (
+                  <p className="muted">Pick a title in Browse titles to enter lobby preview.</p>
+                ) : (
+                  <>
+                    <div className="preview-meta">
+                      <h3>{selectedContent.title}</h3>
+                      <p>{selectedContent.description}</p>
+                      <a href={selectedContent.url} target="_blank" rel="noreferrer">
+                        Open in provider tab
+                      </a>
+                    </div>
+                    {selectedContent.embedUrl ? (
+                      <iframe
+                        src={selectedContent.embedUrl}
+                        title={selectedContent.title}
+                        allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                      />
+                    ) : (
+                      <div className="provider-placeholder">
+                        <img src={selectedContent.thumbnail} alt={selectedContent.title} />
+                        <p>
+                          Content selected. On launch, participants are taken into lobby with this
+                          title.
+                        </p>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </section>
+        </>
       )}
 
       {mode === "join" && (
@@ -591,7 +808,6 @@ export default function App() {
                 {isLoadingJoinRoom ? "Loading..." : "Load room"}
               </button>
             </form>
-
             {joinRoomPreview && (
               <div className="notice info">
                 <p>
@@ -600,6 +816,11 @@ export default function App() {
                 <p>
                   Required service: <strong>{joinRoomPreview.serviceName}</strong>
                 </p>
+                {joinRoomPreview.selectedContent?.title && (
+                  <p>
+                    Selected title: <strong>{joinRoomPreview.selectedContent.title}</strong>
+                  </p>
+                )}
                 <p>{joinRoomPreview.legalNotice}</p>
               </div>
             )}
@@ -616,7 +837,6 @@ export default function App() {
                   required
                 />
               </label>
-
               {joinServiceIsNetflix ? (
                 <>
                   <label>
@@ -657,15 +877,10 @@ export default function App() {
                   </label>
                 </>
               )}
-
-              <button
-                type="submit"
-                disabled={!joinRoomPreview || isVerifyingJoinAccess}
-              >
+              <button type="submit" disabled={!joinRoomPreview || isVerifyingJoinAccess}>
                 {isVerifyingJoinAccess ? "Verifying..." : "Verify join access"}
               </button>
             </form>
-
             {joinAccessToken && (
               <div className="notice success">
                 <p>
@@ -674,13 +889,12 @@ export default function App() {
                 <p>Expires: {new Date(joinExpiresAt).toLocaleString()}</p>
               </div>
             )}
-
             <form className="form-grid" onSubmit={onJoinRoom}>
               <button
                 type="submit"
                 disabled={!joinRoomPreview || !joinAccessToken || isJoiningRoom}
               >
-                {isJoiningRoom ? "Joining..." : "Join room"}
+                {isJoiningRoom ? "Joining..." : "Join lobby"}
               </button>
             </form>
           </article>
@@ -688,9 +902,9 @@ export default function App() {
       )}
 
       <section className="card">
-        <h2>Live room</h2>
+        <h2>Live lobby</h2>
         {!activeRoom ? (
-          <p className="muted">Create or join a room to open synchronized playback and chat.</p>
+          <p className="muted">Create or join a room to enter lobby.</p>
         ) : (
           <div className="room-stack">
             <div className="room-row">
@@ -702,6 +916,20 @@ export default function App() {
                 Copy invite
               </button>
             </div>
+
+            {activeRoom.selectedContent?.title && (
+              <div className="lobby-title">
+                <p>
+                  Lobby title: <strong>{activeRoom.selectedContent.title}</strong>
+                </p>
+                {activeRoom.selectedContent.thumbnail && (
+                  <img
+                    src={activeRoom.selectedContent.thumbnail}
+                    alt={activeRoom.selectedContent.title}
+                  />
+                )}
+              </div>
+            )}
 
             <p className="notice info">{activeRoom.legalNotice}</p>
             <p className="muted">
@@ -772,7 +1000,7 @@ export default function App() {
             </div>
 
             <button type="button" className="ghost danger" onClick={onLeaveRoom}>
-              Leave room
+              Leave lobby
             </button>
           </div>
         )}

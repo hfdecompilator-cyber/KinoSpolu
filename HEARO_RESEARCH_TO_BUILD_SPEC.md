@@ -7,16 +7,18 @@ This document maps HEARO's known watch-party behavior into concrete implementati
 Based on public app/store descriptions and launch materials, HEARO's watch-party experience centers on:
 
 1. Invite-link and room-code watch parties
-2. Synchronized playback
-3. In-room voice and text communication
-4. Cross-device participation
-5. Multi-service discovery, with Netflix being a primary use case
+2. In-app browsing to pick a title before party launch
+3. Synchronized playback
+4. In-room voice and text communication
+5. Cross-device participation
+6. Multi-service discovery, with Netflix being a primary use case
 
 ## What this project now includes
 
 Implemented in this repository:
 
 - Netflix-auth gated room creation (server-side verification step)
+- HEARO-style in-app browser UI for title/video picking before lobby launch
 - Room code + invite flow
 - Host-controlled synchronized playback state (play/pause/seek)
 - Participant presence tracking

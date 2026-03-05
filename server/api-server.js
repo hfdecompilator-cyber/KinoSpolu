@@ -111,6 +111,7 @@ const buildRoomSnapshot = (room) => ({
   partyLink: room.partyLink,
   legalMode: room.legalMode,
   legalNotice: room.legalNotice,
+  selectedContent: room.selectedContent,
   participants: room.participants,
   playback: room.playback,
   messages: room.messages,
@@ -342,6 +343,10 @@ const server = http.createServer(async (req, res) => {
       const serviceId = String(body.serviceId ?? "").trim();
       const roomName = String(body.roomName ?? "").trim();
       const hostName = String(body.hostName ?? "").trim();
+      const contentTitle = String(body.contentTitle ?? "").trim();
+      const contentKind = String(body.contentKind ?? "").trim();
+      const contentUrl = String(body.contentUrl ?? "").trim();
+      const contentThumbnail = String(body.contentThumbnail ?? "").trim();
       const service = serviceById.get(serviceId);
 
       if (!service) {
@@ -376,6 +381,13 @@ const server = http.createServer(async (req, res) => {
         });
         return;
       }
+      if (!contentTitle || !contentUrl) {
+        json(res, 400, {
+          ok: false,
+          error: "Pick a movie/show/video in the in-app browser before creating lobby.",
+        });
+        return;
+      }
 
       const hostParticipantId = randomUUID();
       const room = {
@@ -388,6 +400,14 @@ const server = http.createServer(async (req, res) => {
         createdAt: new Date().toISOString(),
         legalMode: "bring_your_own_subscription",
         legalNotice: createLegalNotice(service.name),
+        selectedContent: {
+          title: contentTitle,
+          kind: contentKind || "title",
+          url: contentUrl,
+          thumbnail: contentThumbnail || null,
+          pickedAt: new Date().toISOString(),
+          pickedBy: hostName,
+        },
         partyLink: "/room/pending",
         participants: [
           {

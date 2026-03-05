@@ -3,9 +3,10 @@
 This repository now includes a HEARO-style watch-party baseline with legal access gating:
 
 1. Host must verify access for the selected streaming service.
-2. Guests must verify access for the room's required service before joining.
-3. Room join is rejected unless each participant has a valid service access token.
-4. The app syncs room state only (playback, chat, participants); it does not restream media.
+2. Host must pick a movie/show/video in the in-app browser before lobby creation.
+3. Guests must verify access for the room's required service before joining.
+4. Room join is rejected unless each participant has a valid service access token.
+5. The app syncs room state only (playback, chat, participants); it does not restream media.
 
 For Netflix, verification checks a real session against `https://www.netflix.com/browse`.
 For non-Netflix services, this example records participant attestation + account reference (upgrade to OAuth/provider entitlement checks in production).
@@ -25,8 +26,8 @@ npm run dev
 ```
 
 3. Open `http://localhost:8080`.
-4. Choose a service, verify host access, and create room.
-5. Load room code on another client, verify guest access, then join.
+4. Choose a service, verify host access, pick content in the in-app browser, and create lobby.
+5. Load room code on another client, verify guest access, then join the lobby.
 
 ### Optional local Netflix success simulation (for CI/dev testing)
 
