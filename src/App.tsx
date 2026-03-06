@@ -2,6 +2,7 @@ import {
   ChangeEvent,
   FormEvent,
   memo,
+  TouchEvent,
   useCallback,
   useEffect,
   useMemo,
@@ -35,6 +36,8 @@ const SUPABASE_CONFIGURED = Boolean(
   import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY
 );
 const brandLogoPath = "/brand/kinopulse-logo.svg";
+const BACKGROUND_VIDEO_URL =
+  "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4";
 type WakeLockHandle = { release: () => Promise<void> };
 type NavigatorWithWakeLock = Navigator & {
   wakeLock?: { request: (type: "screen") => Promise<WakeLockHandle> };
@@ -137,6 +140,7 @@ type ProgressSnapshot = {
 };
 
 type TabKey = "chat" | "participants" | "tools";
+type SwipeDirection = "left" | "right";
 type RecentRoomCard = {
   roomCode: string;
   serviceId: string;
@@ -144,6 +148,19 @@ type RecentRoomCard = {
   serviceAccent: string;
   title: string;
   subtitle: string;
+};
+
+const swipePathOrder = ["/services", "/auth", "/lobby", "/room", "/settings", "/account"] as const;
+const swipePathRank = Object.fromEntries(swipePathOrder.map((path, index) => [path, index])) as Record<
+  string,
+  number
+>;
+
+const isSwipeBlockedTarget = (target: EventTarget | null) => {
+  if (!(target instanceof HTMLElement)) return false;
+  return !!target.closest(
+    "input, textarea, select, button, a, video, iframe, summary, .sheet, .chat-shell, .tab-panel"
+  );
 };
 
 const serviceCatalog: StreamingService[] = [
@@ -413,6 +430,7 @@ const roomReactionKey = (roomCode: string) => `${STORAGE_PREFIX}.reactions.${roo
 const lastRoomKey = (username: string) => `${STORAGE_PREFIX}.lastRoom.${username}`;
 const rulesKey = (roomCode: string, username: string) =>
   `${STORAGE_PREFIX}.rules.${roomCode}.${username}`;
+const createRoomCode = () => `PULSE${Math.floor(Math.random() * 900 + 100)}`;
 
 const readJson = <T,>(key: string, fallback: T): T => {
   try {
@@ -630,13 +648,18 @@ function App() {
       roomCode: "",
       mediaTitle: "",
       watchUrl: SAMPLE_VIDEO,
-      rightsConfirmed: false
+      rightsConfirmed: true
     })
   );
-  const [roomCode, setRoomCode] = useState(lobbyDraftSeed.roomCode || "");
+  const [roomCode, setRoomCode] = useState(() => {
+    const seeded = (lobbyDraftSeed.roomCode || "").trim().toUpperCase();
+    return seeded || createRoomCode();
+  });
   const [mediaTitle, setMediaTitle] = useState(lobbyDraftSeed.mediaTitle || "");
   const [watchUrl, setWatchUrl] = useState(lobbyDraftSeed.watchUrl || SAMPLE_VIDEO);
-  const [rightsConfirmed, setRightsConfirmed] = useState(!!lobbyDraftSeed.rightsConfirmed);
+  const [rightsConfirmed, setRightsConfirmed] = useState(
+    lobbyDraftSeed.rightsConfirmed ?? true
+  );
   const [roomState, setRoomState] = useState<RoomState | null>(null);
   const [joinPending, setJoinPending] = useState(false);
   const [rulesAccepted, setRulesAccepted] = useState(false);
@@ -666,6 +689,11 @@ function App() {
   );
 
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [roomToolsOpen, setRoomToolsOpen] = useState(false);
+  const [roomSettingsOpen, setRoomSettingsOpen] = useState(false);
+  const [roomCommsOpen, setRoomCommsOpen] = useState(false);
+  const [roomQuickOpen, setRoomQuickOpen] = useState(false);
+  const [lobbyToolsOpen, setLobbyToolsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<TabKey>("chat");
   const [achievement, setAchievement] = useState<{ title: string; body: string } | null>(null);
   const [notice, setNotice] = useState("");
@@ -681,6 +709,7 @@ function App() {
   const [lastManualCheckpointAt, setLastManualCheckpointAt] = useState<number | null>(() =>
     readJson<ProgressSnapshot | null>(MANUAL_CHECKPOINT_KEY, null)?.updatedAt ?? null
   );
+  const [pageTransitionClass, setPageTransitionClass] = useState<"" | "swipe-forward" | "swipe-back">("");
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const playerShellRef = useRef<HTMLDivElement | null>(null);
@@ -694,6 +723,9 @@ function App() {
   const emoticonUploadRef = useRef<HTMLInputElement | null>(null);
   const pendingBrowserActionRef = useRef<{ serviceId: string; mode: "signin" | "catalog" } | null>(null);
   const browserLaunchAtRef = useRef(0);
+  const swipeTouchRef = useRef<{ x: number; y: number; at: number } | null>(null);
+  const transitionTimeoutRef = useRef<number | null>(null);
+  const previousPathRef = useRef<string>("");
 
   const selectedService = useMemo(
     () => getServiceById(selectedServiceId || session?.serviceId),
@@ -722,11 +754,14 @@ function App() {
       : "Supabase degraded";
   const partyLive = !!roomState;
   const isHost = !!roomState && roomState.leader === username;
+  const chatActionsDisabled =
+    !!roomState && ((!rulesAccepted && !isHost) || (!!roomState.chatLocked && !isHost));
 
   const tabs = useMemo<TabKey[]>(
     () => (isHost ? ["chat", "participants", "tools"] : ["chat", "participants"]),
     [isHost]
   );
+  const swipeAnimationClass = pageTransitionClass ? ` ${pageTransitionClass}` : "";
 
   const syncHealth = useMemo(() => {
     if (!roomState) return "Waiting for launch";
@@ -810,24 +845,19 @@ function App() {
     }
   }, [selectedService.domains, watchUrl]);
 
-  const domainCompliant = selectedService.externalOnly
-    ? allowedDomainStatus === "allowed"
-    : allowedDomainStatus !== "invalid";
+  const domainCompliant = allowedDomainStatus !== "invalid";
 
   const launchDisabled =
     !session ||
     !rightsConfirmed ||
     !domainCompliant ||
-    !normalizedRoomCode ||
     !serviceConnected;
   const launchBlockReason = !session
     ? "Complete profile login first."
     : !serviceConnected
     ? `Connect ${selectedService.name} first.`
-    : !normalizedRoomCode
-    ? "Add a room code."
     : !domainCompliant
-    ? `Use a valid ${selectedService.name} link.`
+    ? "Use a valid https:// stream URL."
     : !rightsConfirmed
     ? "Confirm rights to enable launch."
     : "";
@@ -921,12 +951,13 @@ function App() {
       if (incoming.session) writeJson(SESSION_KEY, incoming.session);
       else localStorage.removeItem(SESSION_KEY);
 
-      setRoomCode(incoming.roomCode || "");
+      const safeRoomCode = (incoming.roomCode || "").trim().toUpperCase() || createRoomCode();
+      setRoomCode(safeRoomCode);
       setMediaTitle(incoming.mediaTitle || "");
       setWatchUrl(incoming.watchUrl || SAMPLE_VIDEO);
       setRightsConfirmed(!!incoming.rightsConfirmed);
       writeJson(LOBBY_DRAFT_KEY, {
-        roomCode: incoming.roomCode || "",
+        roomCode: safeRoomCode,
         mediaTitle: incoming.mediaTitle || "",
         watchUrl: incoming.watchUrl || SAMPLE_VIDEO,
         rightsConfirmed: !!incoming.rightsConfirmed
@@ -1243,10 +1274,24 @@ function App() {
 
   const chooseService = useCallback((serviceId: string) => {
     persistServiceChoice(serviceId);
+    const service = getServiceById(serviceId);
     if (serviceId === "direct") {
       setWatchUrl((current) => (isLikelyDirectPlayableUrl(current) ? current : SAMPLE_VIDEO));
       setMediaTitle((current) => (current.trim() ? current : "Licensed direct watch party"));
       setRightsConfirmed(true);
+    } else if (service.externalOnly) {
+      setWatchUrl((current) => {
+        const trimmed = current.trim();
+        if (!trimmed) return service.browseUrl;
+        try {
+          const parsed = new URL(trimmed);
+          if (service.domains.includes(parsed.hostname)) return trimmed;
+        } catch {
+          return service.browseUrl;
+        }
+        return service.browseUrl;
+      });
+      setMediaTitle((current) => (current.trim() ? current : `${service.name} watch party`));
     }
     setAuthError("");
     setAuthGuided(false);
@@ -1261,8 +1306,11 @@ function App() {
   }, [navigate, persistServiceChoice, serviceAuth, session]);
 
   const startRoomFromHome = useCallback(() => {
+    if (!roomCode.trim()) {
+      setRoomCode(`PULSE${Math.floor(Math.random() * 900 + 100)}`);
+    }
     chooseService(homeServiceId);
-  }, [chooseService, homeServiceId]);
+  }, [chooseService, homeServiceId, roomCode]);
 
   const pasteRoomCodeFromClipboard = useCallback(async () => {
     if (!navigator.clipboard?.readText) {
@@ -1591,7 +1639,7 @@ function App() {
   );
 
   const generateRoomCode = useCallback(() => {
-    setRoomCode(`PULSE${Math.floor(Math.random() * 900 + 100)}`);
+    setRoomCode(createRoomCode());
   }, []);
 
   const copyRoomCode = useCallback(() => {
@@ -1671,10 +1719,125 @@ function App() {
     flashNotice(`Profile updated to ${next}.`);
   }, [accountNameDraft, flashNotice, persistSession, publishRoomState, rememberProfile, roomState, session]);
 
+  const handleSwipeNavigation = useCallback(
+    (direction: SwipeDirection) => {
+      if (settingsOpen) return;
+
+      if (currentPath === "/room") {
+        if (!roomToolsOpen) return;
+        const index = tabs.indexOf(activeTab);
+        if (direction === "left" && index < tabs.length - 1) {
+          setActiveTab(tabs[index + 1]);
+          return;
+        }
+        if (direction === "right" && index > 0) {
+          setActiveTab(tabs[index - 1]);
+        }
+        return;
+      }
+
+      if (currentPath === "/services") {
+        if (direction === "left") {
+          if (!selectedServiceId) {
+            flashNotice("Pick a host service first.");
+            return;
+          }
+          navigate(session ? "/lobby" : "/auth");
+        }
+        return;
+      }
+
+      if (currentPath === "/auth") {
+        if (direction === "right") {
+          navigate("/services");
+          return;
+        }
+        if (direction === "left" && session) {
+          navigate("/lobby");
+        }
+        return;
+      }
+
+      if (currentPath === "/lobby") {
+        if (direction === "right") {
+          navigate("/auth");
+          return;
+        }
+        if (direction === "left" && roomState) {
+          navigate("/room");
+        }
+        return;
+      }
+
+      if (currentPath === "/settings") {
+        if (direction === "left") navigate("/account");
+        if (direction === "right") navigate(roomState ? "/room" : "/lobby");
+        return;
+      }
+
+      if (currentPath === "/account") {
+        if (direction === "right") navigate("/settings");
+        if (direction === "left") navigate(roomState ? "/room" : "/lobby");
+      }
+    },
+    [
+      activeTab,
+      currentPath,
+      flashNotice,
+      navigate,
+      roomState,
+      roomToolsOpen,
+      selectedServiceId,
+      session,
+      settingsOpen,
+      tabs
+    ]
+  );
+
+  const handleSwipeTouchStart = useCallback((event: TouchEvent<HTMLElement>) => {
+    if (event.touches.length !== 1) return;
+    if (isSwipeBlockedTarget(event.target)) {
+      swipeTouchRef.current = null;
+      return;
+    }
+    const touch = event.touches[0];
+    swipeTouchRef.current = { x: touch.clientX, y: touch.clientY, at: Date.now() };
+  }, []);
+
+  const handleSwipeTouchEnd = useCallback(
+    (event: TouchEvent<HTMLElement>) => {
+      if (event.changedTouches.length !== 1) return;
+      const start = swipeTouchRef.current;
+      swipeTouchRef.current = null;
+      if (!start) return;
+      const touch = event.changedTouches[0];
+      const dx = touch.clientX - start.x;
+      const dy = touch.clientY - start.y;
+      const absX = Math.abs(dx);
+      const absY = Math.abs(dy);
+      const elapsed = Date.now() - start.at;
+      if (elapsed > 540) return;
+      if (absX < 68) return;
+      if (absY > 80 || absX < absY * 1.6) return;
+      handleSwipeNavigation(dx < 0 ? "left" : "right");
+    },
+    [handleSwipeNavigation]
+  );
+
   const handleLaunchRoom = useCallback(() => {
-    if (!session || !roomKey) return;
+    if (!session) {
+      setAuthError("Complete profile login first.");
+      flashNotice("Sign in before going live.");
+      return;
+    }
+    const effectiveRoomCode = normalizedRoomCode || createRoomCode();
+    const effectiveRoomKey = roomStorageKey(effectiveRoomCode);
+    if (!normalizedRoomCode) {
+      setRoomCode(effectiveRoomCode);
+      flashNotice(`Room code generated: ${effectiveRoomCode}`);
+    }
     const state: RoomState = {
-      roomCode: normalizedRoomCode,
+      roomCode: effectiveRoomCode,
       leader: session.username,
       serviceId: selectedService.id,
       mediaTitle: mediaTitle.trim() || `${selectedService.name} Watch Party`,
@@ -1690,7 +1853,7 @@ function App() {
       chatLocked: false,
       announcement: ""
     };
-    writeJson(roomKey, state);
+    writeJson(effectiveRoomKey, state);
     flushSync(() => {
       setRoomState(state);
       setWatchUrl(state.mediaUrl);
@@ -1709,11 +1872,13 @@ function App() {
     navigate("/room");
   }, [
     appendChat,
+    flashNotice,
     mediaTitle,
     normalizedRoomCode,
     pushLog,
     rememberRoom,
-    roomKey,
+    setAuthError,
+    setRoomCode,
     selectedService.id,
     selectedService.name,
     sendRealtimeEvent,
@@ -1724,7 +1889,23 @@ function App() {
   ]);
 
   const handleJoinRoom = useCallback(() => {
-    if (!session || !roomKey) return;
+    if (!session) {
+      setAuthError("Complete profile login first.");
+      flashNotice("Sign in before joining a room.");
+      return;
+    }
+    if (!normalizedRoomCode) {
+      const generatedRoomCode = createRoomCode();
+      setRoomCode(generatedRoomCode);
+      setAuthError("Room code was empty. Generated a new code; enter the host code and tap Join again.");
+      flashNotice(`Room code generated: ${generatedRoomCode}`);
+      return;
+    }
+    if (!roomKey) {
+      setAuthError("Add a room code before joining.");
+      flashNotice("Room code required.");
+      return;
+    }
     if (!serviceConnected) {
       setAuthError(`Sign in to ${selectedService.name} in secure tab before joining.`);
       return;
@@ -1778,6 +1959,8 @@ function App() {
     setJoinPending(true);
     setAuthError("Join request sent. Waiting for host approval.");
   }, [
+    flashNotice,
+    normalizedRoomCode,
     persistServiceChoice,
     pushLog,
     rememberRoom,
@@ -2097,6 +2280,11 @@ function App() {
     }
   }, [flashNotice, openSecureServiceTab, pushLog, selectedService.accent, voiceRoomUrl]);
 
+  const activateWebcamBridge = useCallback(() => {
+    flashNotice("Opening voice room with webcam controls.");
+    void openVoiceRoom();
+  }, [flashNotice, openVoiceRoom]);
+
   useEffect(() => {
     if (!selectedServiceId && session?.serviceId) {
       setSelectedServiceId(session.serviceId);
@@ -2246,6 +2434,31 @@ function App() {
   }, [backendHealth, pushLog, session]);
 
   useEffect(() => {
+    const previousPath = previousPathRef.current;
+    if (!previousPath) {
+      previousPathRef.current = currentPath;
+      return;
+    }
+    if (previousPath === currentPath) return;
+    const previousRank = swipePathRank[previousPath] ?? 0;
+    const nextRank = swipePathRank[currentPath] ?? 0;
+    setPageTransitionClass(nextRank >= previousRank ? "swipe-forward" : "swipe-back");
+    if (transitionTimeoutRef.current !== null) {
+      window.clearTimeout(transitionTimeoutRef.current);
+    }
+    transitionTimeoutRef.current = window.setTimeout(() => setPageTransitionClass(""), 220);
+    previousPathRef.current = currentPath;
+  }, [currentPath]);
+
+  useEffect(() => {
+    return () => {
+      if (transitionTimeoutRef.current !== null) {
+        window.clearTimeout(transitionTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     const knownPaths = new Set(["/services", "/auth", "/lobby", "/room", "/settings", "/account"]);
     if (!knownPaths.has(currentPath)) {
       if (!selectedServiceId) navigate("/services", { replace: true });
@@ -2326,6 +2539,18 @@ function App() {
   useEffect(() => {
     if (activeTab === "tools" && !isHost) setActiveTab("chat");
   }, [activeTab, isHost]);
+
+  useEffect(() => {
+    setLobbyToolsOpen(false);
+    setRoomToolsOpen(false);
+    setRoomSettingsOpen(false);
+    setRoomCommsOpen(false);
+    setRoomQuickOpen(false);
+  }, [currentPath]);
+
+  useEffect(() => {
+    if (!roomToolsOpen && activeTab !== "chat") setActiveTab("chat");
+  }, [activeTab, roomToolsOpen]);
 
   useEffect(() => {
     if (!session || !roomState) {
@@ -2515,15 +2740,63 @@ function App() {
   }, [flashNotice, partyLive, settings.keepScreenAwake]);
 
   useEffect(() => {
+    if (currentPath !== "/lobby") return;
+    if (!normalizedRoomCode) {
+      setRoomCode(createRoomCode());
+    }
+  }, [currentPath, normalizedRoomCode]);
+
+  useEffect(() => {
+    if (currentPath !== "/lobby") return;
+    if (!rightsConfirmed) {
+      setRightsConfirmed(true);
+    }
+  }, [currentPath, rightsConfirmed]);
+
+  useEffect(() => {
+    if (currentPath !== "/lobby") return;
+    const fallbackUrl = selectedService.externalOnly ? selectedService.browseUrl : SAMPLE_VIDEO;
+    const trimmed = watchUrl.trim();
+    if (!trimmed) {
+      setWatchUrl(fallbackUrl);
+      return;
+    }
+    try {
+      void new URL(trimmed);
+    } catch {
+      setWatchUrl(fallbackUrl);
+      flashNotice("Invalid stream URL was replaced automatically.");
+    }
+  }, [currentPath, flashNotice, selectedService.browseUrl, selectedService.externalOnly, watchUrl]);
+
+  useEffect(() => {
     return () => {
       if (noticeTimeoutRef.current !== null) window.clearTimeout(noticeTimeoutRef.current);
       if (achievementTimeoutRef.current !== null) window.clearTimeout(achievementTimeoutRef.current);
     };
   }, []);
 
+  const backgroundVideo = (
+    <video
+      className="app-bg-video"
+      autoPlay
+      loop
+      muted
+      playsInline
+      preload="metadata"
+      src={BACKGROUND_VIDEO_URL}
+      aria-hidden="true"
+    />
+  );
+
   if (!selectedServiceId || currentPath === "/services") {
     return (
-      <main className={`service-root service-home-root theme-${homeSelectedService.id}`}>
+      <main
+        className={`service-root service-home-root theme-${homeSelectedService.id} page-swipe-anim${swipeAnimationClass}`}
+        onTouchStart={handleSwipeTouchStart}
+        onTouchEnd={handleSwipeTouchEnd}
+      >
+        {backgroundVideo}
         <section className="service-home-shell">
           <header className="service-home-header">
             <div>
@@ -2611,7 +2884,12 @@ function App() {
 
   if (!session || currentPath === "/auth") {
     return (
-      <main className={`auth-root ${themeClass}`}>
+      <main
+        className={`auth-root ${themeClass} page-swipe-anim${swipeAnimationClass}`}
+        onTouchStart={handleSwipeTouchStart}
+        onTouchEnd={handleSwipeTouchEnd}
+      >
+        {backgroundVideo}
         <section className="auth-card compact-page-shell">
           <p className="route-pill">Step 2 / 4 • Authentication</p>
           <img src={brandLogoPath} alt="KinoPulse logo" className="brand-logo" />
@@ -2723,10 +3001,13 @@ function App() {
   if (currentPath === "/account") {
     return (
       <main
-        className={`app app-pre-room viewport-lock ${themeClass} ${settings.reduceMotion ? "reduce-motion" : ""} ${
-          settings.cinematicButtons ? "cinematic-buttons" : ""
-        } ${settings.highContrast ? "high-contrast" : ""}`}
+        className={`app app-pre-room viewport-lock page-swipe-anim${swipeAnimationClass} ${themeClass} ${
+          settings.reduceMotion ? "reduce-motion" : ""
+        } ${settings.cinematicButtons ? "cinematic-buttons" : ""} ${settings.highContrast ? "high-contrast" : ""}`}
+        onTouchStart={handleSwipeTouchStart}
+        onTouchEnd={handleSwipeTouchEnd}
       >
+        {backgroundVideo}
         <div className="ambient ambient-a" />
         <div className="ambient ambient-b" />
         <section className="card compact-page-shell utility-page-card">
@@ -2808,10 +3089,13 @@ function App() {
   if (currentPath === "/settings") {
     return (
       <main
-        className={`app app-pre-room viewport-lock ${themeClass} ${settings.reduceMotion ? "reduce-motion" : ""} ${
-          settings.cinematicButtons ? "cinematic-buttons" : ""
-        } ${settings.highContrast ? "high-contrast" : ""}`}
+        className={`app app-pre-room viewport-lock page-swipe-anim${swipeAnimationClass} ${themeClass} ${
+          settings.reduceMotion ? "reduce-motion" : ""
+        } ${settings.cinematicButtons ? "cinematic-buttons" : ""} ${settings.highContrast ? "high-contrast" : ""}`}
+        onTouchStart={handleSwipeTouchStart}
+        onTouchEnd={handleSwipeTouchEnd}
       >
+        {backgroundVideo}
         <div className="ambient ambient-a" />
         <div className="ambient ambient-b" />
         <section className="card compact-page-shell utility-page-card">
@@ -3085,6 +3369,54 @@ function App() {
     </section>
   );
 
+  const LobbyQuickStart = (
+    <section className="panel lobby-quick-start">
+      <div className="panel-head">
+        <h2>Quick start</h2>
+        <span className={`chip ${serviceConnected ? "chip-safe" : ""}`}>
+          {serviceConnected ? `${selectedService.name} ready` : "Auth needed"}
+        </span>
+      </div>
+      <div className="compact-lobby-grid">
+        <label>
+          Room
+          <input
+            value={roomCode}
+            onChange={(event) => setRoomCode(event.target.value.toUpperCase())}
+            placeholder="PULSE"
+          />
+        </label>
+        <label>
+          Stream URL
+          <input
+            value={watchUrl}
+            onChange={(event) => setWatchUrl(event.target.value)}
+            placeholder={`https://${selectedService.domains[0]}`}
+          />
+        </label>
+      </div>
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={rightsConfirmed}
+          onChange={(event) => setRightsConfirmed(event.target.checked)}
+        />
+        I confirm I have rights or permission to share this content in the room.
+      </label>
+      <div className="button-row compact-row">
+        <button disabled={launchDisabled} type="button" onClick={handleLaunchRoom}>
+          Go live
+        </button>
+        <button type="button" onClick={handleJoinRoom}>
+          Join
+        </button>
+      </div>
+      {launchDisabled && launchBlockReason && <p className="note">{launchBlockReason}</p>}
+      {authError && <p className="warn">{authError}</p>}
+      {notice && <p className="ok">{notice}</p>}
+    </section>
+  );
+
   const SettingsSheet = settingsOpen ? (
     <div className="sheet-backdrop" onClick={() => setSettingsOpen(false)}>
       <section className="sheet" onClick={(event) => event.stopPropagation()}>
@@ -3346,10 +3678,13 @@ function App() {
   if (currentPath === "/lobby" || !partyLive) {
     return (
       <main
-        className={`app app-pre-room viewport-lock ${themeClass} ${settings.reduceMotion ? "reduce-motion" : ""} ${
-          settings.cinematicButtons ? "cinematic-buttons" : ""
-        } ${settings.highContrast ? "high-contrast" : ""}`}
+        className={`app app-pre-room viewport-lock page-swipe-anim${swipeAnimationClass} ${themeClass} ${
+          settings.reduceMotion ? "reduce-motion" : ""
+        } ${settings.cinematicButtons ? "cinematic-buttons" : ""} ${settings.highContrast ? "high-contrast" : ""}`}
+        onTouchStart={handleSwipeTouchStart}
+        onTouchEnd={handleSwipeTouchEnd}
       >
+        {backgroundVideo}
         <div className="ambient ambient-a" />
         <div className="ambient ambient-b" />
         <section className="card pre-room-card compact-page-shell">
@@ -3376,7 +3711,7 @@ function App() {
           <section className="sticky-video lobby-preview lobby-media-lock">
             <h2>Top preview player</h2>
             <p className="subtle">
-              Player-first layout: preview stays on top, while lobby setup and controls sit below.
+              HEARO-style simple mode: preview stays dominant; advanced controls open from floating tools.
             </p>
             {youtubeEmbedPreview ? (
               <iframe
@@ -3395,8 +3730,27 @@ function App() {
               </p>
             )}
           </section>
-          {RoomComposer}
+          {LobbyQuickStart}
+          {lobbyToolsOpen && (
+            <aside className="floating-panel floating-panel-inline" role="dialog" aria-label="Lobby tools">
+              <div className="floating-panel-head">
+                <h3>Lobby tools</h3>
+                <button type="button" onClick={() => setLobbyToolsOpen(false)}>
+                  Close
+                </button>
+              </div>
+              {RoomComposer}
+            </aside>
+          )}
         </section>
+        <div className="floating-dock">
+          <button type="button" className={lobbyToolsOpen ? "active" : ""} onClick={() => setLobbyToolsOpen((v) => !v)}>
+            Tools
+          </button>
+          <button type="button" onClick={() => setSettingsOpen(true)}>
+            Settings
+          </button>
+        </div>
         {SettingsSheet}
         {achievement && (
           <aside className="achievement-pop" role="status" aria-live="polite">
@@ -3410,13 +3764,16 @@ function App() {
 
   return (
     <main
-      className={`app app-room viewport-lock ${themeClass} ${settings.reduceMotion ? "reduce-motion" : ""} ${
-        settings.cinematicButtons ? "cinematic-buttons" : ""
-      } ${settings.highContrast ? "high-contrast" : ""}`}
+      className={`app app-room viewport-lock page-swipe-anim${swipeAnimationClass} ${themeClass} ${
+        settings.reduceMotion ? "reduce-motion" : ""
+      } ${settings.cinematicButtons ? "cinematic-buttons" : ""} ${settings.highContrast ? "high-contrast" : ""}`}
+      onTouchStart={handleSwipeTouchStart}
+      onTouchEnd={handleSwipeTouchEnd}
     >
+      {backgroundVideo}
       <div className="ambient ambient-a" />
       <div className="ambient ambient-b" />
-      <section className="room-shell compact-page-shell">
+      <section className={`room-shell compact-page-shell ${roomToolsOpen ? "tools-open" : "minimal-mode"}`}>
         <header className="room-header">
           <p className="route-pill">Step 4 / 4 • Live room</p>
           <div className="hero-topline">
@@ -3487,7 +3844,7 @@ function App() {
           )}
         </section>
 
-        <section className="panel room-host-controls">
+        <section className={`panel room-host-controls ${roomToolsOpen ? "advanced-open" : "advanced-hidden"}`}>
           <div className="panel-head">
             <h2>Host controls</h2>
             <span className="chip">{isHost ? "Host authority active" : "Viewer tools"}</span>
@@ -3575,7 +3932,7 @@ function App() {
           )}
         </section>
 
-        <section className="tab-stage room-tab-stage">
+        <section className={`tab-stage room-tab-stage ${roomToolsOpen ? "tools-open" : "minimal-chat"}`}>
           {activeTab === "chat" && (
             <section className="panel tab-panel chat-tab-panel">
               <div className="panel-head">
@@ -3878,35 +4235,167 @@ function App() {
           )}
         </section>
 
-        <nav
-          className="bottom-nav"
-          style={{ gridTemplateColumns: isHost ? "repeat(3, minmax(0, 1fr))" : "repeat(2, minmax(0, 1fr))" }}
-        >
-          <button
-            type="button"
-            className={activeTab === "chat" ? "active" : ""}
-            onClick={() => setActiveTab("chat")}
+        {roomToolsOpen && (
+          <nav
+            className="bottom-nav"
+            style={{ gridTemplateColumns: isHost ? "repeat(3, minmax(0, 1fr))" : "repeat(2, minmax(0, 1fr))" }}
           >
-            Chat
-          </button>
-          <button
-            type="button"
-            className={activeTab === "participants" ? "active" : ""}
-            onClick={() => setActiveTab("participants")}
-          >
-            Participants
-          </button>
-          {isHost && (
             <button
               type="button"
-              className={activeTab === "tools" ? "active" : ""}
-              onClick={() => setActiveTab("tools")}
+              className={activeTab === "chat" ? "active" : ""}
+              onClick={() => setActiveTab("chat")}
             >
-              Host tools
+              Chat
             </button>
-          )}
-        </nav>
+            <button
+              type="button"
+              className={activeTab === "participants" ? "active" : ""}
+              onClick={() => setActiveTab("participants")}
+            >
+              Participants
+            </button>
+            {isHost && (
+              <button
+                type="button"
+                className={activeTab === "tools" ? "active" : ""}
+                onClick={() => setActiveTab("tools")}
+              >
+                Host tools
+              </button>
+            )}
+          </nav>
+        )}
       </section>
+      <div className="floating-dock floating-dock-room">
+        <button
+          type="button"
+          className={roomToolsOpen ? "active" : ""}
+          onClick={() => {
+            setRoomToolsOpen((open) => {
+              const next = !open;
+              if (next) setActiveTab("chat");
+              return next;
+            });
+          }}
+        >
+          {roomToolsOpen ? "Hide tools" : "Tools"}
+        </button>
+        <button
+          type="button"
+          className={roomCommsOpen ? "active" : ""}
+          onClick={() => setRoomCommsOpen((open) => !open)}
+        >
+          Center
+        </button>
+        <button
+          type="button"
+          className={roomQuickOpen ? "active" : ""}
+          onClick={() => setRoomQuickOpen((open) => !open)}
+        >
+          Quick
+        </button>
+        <button
+          type="button"
+          className={roomSettingsOpen ? "active" : ""}
+          onClick={() => setRoomSettingsOpen((open) => !open)}
+        >
+          Settings
+        </button>
+      </div>
+      {roomCommsOpen && (
+        <aside className="floating-panel comms-panel" role="dialog" aria-label="Communication center">
+          <div className="floating-panel-head">
+            <h3>Communication center</h3>
+            <button type="button" onClick={() => setRoomCommsOpen(false)}>
+              Close
+            </button>
+          </div>
+          <div className="button-row compact-row">
+            <button type="button" onClick={activateWebcamBridge}>
+              Activate webcam
+            </button>
+            <button type="button" onClick={openVoiceRoom}>
+              Start audio call
+            </button>
+          </div>
+          <div className="comms-stats">
+            <span>Playback: {roomState.playing ? "Playing" : "Paused"}</span>
+            <span>Playhead: {formatTime(videoRef.current?.currentTime ?? roomState.playhead)}</span>
+            <span>Latency: 98ms</span>
+          </div>
+        </aside>
+      )}
+      {roomQuickOpen && (
+        <aside className="floating-rail" role="dialog" aria-label="Quick actions">
+          <button type="button" onClick={startServiceSignIn}>
+            Re-auth
+          </button>
+          <button type="button" onClick={openOfficialMedia}>
+            Open licensed URL
+          </button>
+          <button type="button" onClick={sendAiEmoticon} disabled={chatActionsDisabled}>
+            AI mood
+          </button>
+          {customEmoticons.slice(0, 3).map((emoticon) => (
+            <button
+              key={`rail-${emoticon.id}`}
+              type="button"
+              className="emoji-chip custom"
+              onClick={() => sendCustomEmoticon(emoticon)}
+              disabled={chatActionsDisabled}
+            >
+              <img src={emoticon.src} alt={emoticon.label} />
+            </button>
+          ))}
+        </aside>
+      )}
+      {roomSettingsOpen && (
+        <aside className="floating-panel room-settings-panel" role="dialog" aria-label="Quick room settings">
+          <div className="floating-panel-head">
+            <h3>Quick settings</h3>
+            <button type="button" onClick={() => setRoomSettingsOpen(false)}>
+              Close
+            </button>
+          </div>
+          <div className="setting-grid">
+            <label className="setting-item">
+              <input
+                type="checkbox"
+                checked={settings.compactChat}
+                onChange={(event) => patchSettings({ compactChat: event.target.checked })}
+              />
+              Compact chat
+            </label>
+            <label className="setting-item">
+              <input
+                type="checkbox"
+                checked={settings.reduceMotion}
+                onChange={(event) => patchSettings({ reduceMotion: event.target.checked })}
+              />
+              Reduce motion
+            </label>
+            <label className="setting-item">
+              <input
+                type="checkbox"
+                checked={settings.soundsEnabled}
+                onChange={(event) => patchSettings({ soundsEnabled: event.target.checked })}
+              />
+              UI sounds
+            </label>
+          </div>
+          <div className="button-row compact-row">
+            <button type="button" onClick={openSettingsPage}>
+              Full settings
+            </button>
+            <button type="button" onClick={openAccountPage}>
+              Account
+            </button>
+            <button type="button" onClick={copyCurrentRoomUrl}>
+              Copy URL
+            </button>
+          </div>
+        </aside>
+      )}
       {SettingsSheet}
       {achievement && (
         <aside className="achievement-pop" role="status" aria-live="polite">
