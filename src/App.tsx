@@ -530,6 +530,7 @@ function App() {
   const [authError, setAuthError] = useState("");
   const [authGuided, setAuthGuided] = useState(false);
   const [authInfo, setAuthInfo] = useState("");
+  const [authAutoStartServiceId, setAuthAutoStartServiceId] = useState<string | null>(null);
 
   const [lobbyDraftSeed] = useState(() =>
     readJson<{
@@ -1103,6 +1104,7 @@ function App() {
     setSelectedServiceId(null);
     setAuthGuided(false);
     setAuthInfo("");
+    setAuthAutoStartServiceId(null);
     navigate("/services");
   }, [navigate]);
 
@@ -1130,8 +1132,14 @@ function App() {
     setAuthError("");
     setAuthGuided(false);
     setAuthInfo("");
+    const alreadyConnected = serviceId === "direct" || !!serviceAuth[serviceId];
+    if (session && alreadyConnected) {
+      navigate("/lobby");
+      return;
+    }
+    setAuthAutoStartServiceId(serviceId);
     navigate("/auth");
-  }, [navigate, persistServiceChoice]);
+  }, [navigate, persistServiceChoice, serviceAuth, session]);
 
   const autoContinueToLobby = useCallback(
     (preferredName?: string) => {
@@ -1160,6 +1168,16 @@ function App() {
       session?.username
     ]
   );
+
+  const recommendedAuthProfile = useMemo(
+    () => session?.username?.trim() || recentProfiles[0]?.trim() || "Guest",
+    [recentProfiles, session?.username]
+  );
+
+  const continueInstantly = useCallback(() => {
+    const who = autoContinueToLobby();
+    flashNotice(`Continuing as ${who}.`);
+  }, [autoContinueToLobby, flashNotice]);
 
   const detectServiceLinkFromClipboard = useCallback(
     async (serviceId: string) => {
@@ -1226,6 +1244,7 @@ function App() {
   ]);
 
   const startServiceSignIn = useCallback(async () => {
+    setAuthAutoStartServiceId(null);
     if (selectedService.id === "direct") {
       patchServiceAuth("direct", true);
       setAuthGuided(true);
@@ -1256,6 +1275,7 @@ function App() {
     flashNotice,
     openSecureServiceTab,
     patchServiceAuth,
+    setAuthAutoStartServiceId,
     selectedService.accent,
     selectedService.id,
     selectedService.loginUrl,
@@ -2029,6 +2049,20 @@ function App() {
   }, [autoContinueToLobby, currentPath, flashNotice, recentProfiles, selectedServiceId, serviceConnected, session]);
 
   useEffect(() => {
+    if (currentPath !== "/auth") return;
+    if (!authAutoStartServiceId) return;
+    if (authAutoStartServiceId !== selectedService.id) return;
+    if (serviceConnected) {
+      setAuthAutoStartServiceId(null);
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      void startServiceSignIn();
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, [authAutoStartServiceId, currentPath, selectedService.id, serviceConnected, startServiceSignIn]);
+
+  useEffect(() => {
     if (selectedService.id !== "direct") return;
     if (serviceAuth.direct) return;
     patchServiceAuth("direct", true);
@@ -2277,7 +2311,33 @@ function App() {
           <p className="subtle">
             Selected: <strong>{selectedService.name}</strong>. Secure in-app authentication starts below.
           </p>
-          <section className="auth-browser-card">
+          <section className="auth-fast-lane">
+            <h3>Fast lane</h3>
+            <p className="subtle">
+              One tap opens official {selectedService.name} auth, then returns here and continues automatically.
+            </p>
+            <div className="button-row">
+              <button
+                type="button"
+                className="browser-cta"
+                onClick={serviceConnected ? continueInstantly : startServiceSignIn}
+              >
+                {serviceConnected ? `Continue as ${recommendedAuthProfile}` : `One-tap ${selectedService.name} sign-in`}
+              </button>
+              <button type="button" onClick={openServiceCatalog}>
+                Open {selectedService.name} app/home
+              </button>
+            </div>
+            {authInfo && <p className="ok">{authInfo}</p>}
+            {selectedService.id === "youtube" && (
+              <p className="note">
+                YouTube fast path: sign in, open/copy video link, return — lobby auto-fills and launches quicker.
+              </p>
+            )}
+          </section>
+
+          <details className="auth-browser-card auth-advanced">
+            <summary>Advanced options / fallback</summary>
             <div className="auth-browser-head">
               <h3>{selectedService.name} secure sign-in</h3>
               <span className={`chip ${serviceConnected ? "chip-safe" : ""}`}>
@@ -2308,17 +2368,11 @@ function App() {
                 Open {selectedService.name} home
               </button>
             </div>
-            {authInfo && <p className="ok">{authInfo}</p>}
-            {selectedService.id === "youtube" && (
-              <p className="note">
-                YouTube fast path: sign in, open a video, copy link, and return — lobby auto-fills your watch URL.
-              </p>
-            )}
             <p className="note">
               Policy-safe pattern: official provider auth in system/custom tab, no embedded credential
               interception.
             </p>
-          </section>
+          </details>
           {recentProfiles.length > 0 && (
             <div className="quick-profiles">
               {recentProfiles.map((profile) => (
@@ -2328,28 +2382,31 @@ function App() {
               ))}
             </div>
           )}
-          <form className="report" onSubmit={handleAuthSubmit}>
-            <label>
-              Display name
-              <input
-                value={authName}
-                onChange={(event) => setAuthName(event.target.value)}
-                placeholder="Leave blank for auto guest"
-              />
-            </label>
-            {authError && <p className="warn">{authError}</p>}
-            <div className="button-row">
-              <button type="submit" disabled={!serviceConnected}>
-                Continue
-              </button>
-              <button type="button" onClick={useQuickGuest} disabled={!serviceConnected}>
-                Quick guest
-              </button>
-              <button type="button" onClick={resetServiceSelection}>
-                Change service
-              </button>
-            </div>
-          </form>
+          <details className="auth-manual-profile">
+            <summary>Manual profile controls</summary>
+            <form className="report" onSubmit={handleAuthSubmit}>
+              <label>
+                Display name
+                <input
+                  value={authName}
+                  onChange={(event) => setAuthName(event.target.value)}
+                  placeholder="Leave blank for auto guest"
+                />
+              </label>
+              {authError && <p className="warn">{authError}</p>}
+              <div className="button-row">
+                <button type="submit" disabled={!serviceConnected}>
+                  Continue
+                </button>
+                <button type="button" onClick={useQuickGuest} disabled={!serviceConnected}>
+                  Quick guest
+                </button>
+                <button type="button" onClick={resetServiceSelection}>
+                  Change service
+                </button>
+              </div>
+            </form>
+          </details>
         </section>
       </main>
     );

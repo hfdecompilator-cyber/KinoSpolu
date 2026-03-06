@@ -342,6 +342,15 @@ button:disabled {
   font-size: 0.84rem;
 }
 
+.auth-fast-lane {
+  border: 1px solid rgba(96, 165, 250, 0.46);
+  border-radius: 14px;
+  padding: 12px;
+  background: linear-gradient(160deg, rgba(8, 20, 41, 0.92), rgba(12, 29, 58, 0.8));
+  display: grid;
+  gap: 8px;
+}
+
 .auth-browser-card {
   border: 1px solid rgba(var(--service-accent-rgb), 0.58);
   border-radius: 16px;
@@ -357,6 +366,43 @@ button:disabled {
   display: grid;
   gap: 9px;
   animation: service-glow 4s ease-in-out infinite;
+}
+
+.auth-advanced,
+.auth-manual-profile {
+  border: 1px solid rgba(71, 85, 105, 0.52);
+  border-radius: 14px;
+  padding: 10px;
+  background: rgba(7, 14, 27, 0.72);
+}
+
+.auth-advanced > summary,
+.auth-manual-profile > summary {
+  cursor: pointer;
+  color: #dbeafe;
+  font-weight: 600;
+  list-style: none;
+}
+
+.auth-advanced > summary::-webkit-details-marker,
+.auth-manual-profile > summary::-webkit-details-marker {
+  display: none;
+}
+
+.auth-advanced > summary::after,
+.auth-manual-profile > summary::after {
+  content: " ▾";
+  color: #93c5fd;
+}
+
+.auth-advanced[open] > summary::after,
+.auth-manual-profile[open] > summary::after {
+  content: " ▴";
+}
+
+.auth-advanced > *:not(summary),
+.auth-manual-profile > *:not(summary) {
+  margin-top: 10px;
 }
 
 .lobby-auth-card {
