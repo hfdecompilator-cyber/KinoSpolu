@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "@capacitor/android": "^8.1.0",
+    "@capacitor/browser": "^8.0.1",
     "@capacitor/cli": "^8.1.0",
     "@capacitor/core": "^8.1.0",
     "@google/generative-ai": "^0.24.1",

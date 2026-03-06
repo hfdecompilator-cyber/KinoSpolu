@@ -11,11 +11,17 @@
 1. **Service-first onboarding**
    - Users select a streaming host before profile authentication.
    - Session ties to selected host to avoid ambiguous rights/compliance state.
+   - For subscription services, users authenticate through official provider pages in secure in-app browser tabs (Custom Tabs), not fake in-app credential forms.
 
 2. **Rights and domain guardrails**
    - Launch flow requires explicit rights confirmation checkbox.
-   - Link validation checks host domains against selected service (warns on mismatches).
+   - Link validation checks host domains against selected service and blocks launch on mismatches.
    - For subscription platforms, playback acts as synchronized companion flow and opens official links.
+
+4. **Screen architecture (no giant scroll wall)**
+   - Dedicated stages: `/services` -> `/auth` -> `/lobby` -> `/room`.
+   - Sticky sync console + bottom navigation in live room keeps video visible while users multitask.
+   - Settings/legal are moved into a modal sheet to reduce clutter.
 
 3. **UGC trust and safety controls**
    - Rule-consent gate for non-host chat participation.

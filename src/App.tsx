@@ -7,24 +7,34 @@ import {
   useRef,
   useState
 } from "react";
+import { Browser } from "@capacitor/browser";
+import { Capacitor } from "@capacitor/core";
+import { useLocation, useNavigate } from "react-router-dom";
 
 const STORAGE_PREFIX = "kinopulse.v4";
 const SESSION_KEY = `${STORAGE_PREFIX}.session`;
 const SETTINGS_KEY = `${STORAGE_PREFIX}.settings`;
 const PROFILES_KEY = `${STORAGE_PREFIX}.profiles`;
 const SERVICE_KEY = `${STORAGE_PREFIX}.service`;
+const SERVICE_AUTH_KEY = `${STORAGE_PREFIX}.serviceAuth`;
 const ACH_FIRST_ROOM_KEY = `${STORAGE_PREFIX}.achievement.firstRoom`;
 const SAMPLE_VIDEO =
   "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
+const SUPABASE_CONFIGURED = Boolean(
+  import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY
+);
 
 type StreamingService = {
   id: string;
   name: string;
   tag: string;
   accent: string;
+  accentRgb: string;
   domains: string[];
   externalOnly: boolean;
   legalHint: string;
+  loginUrl: string;
+  browseUrl: string;
 };
 
 type Session = {
@@ -72,45 +82,156 @@ const serviceCatalog: StreamingService[] = [
     name: "Netflix",
     tag: "N",
     accent: "#e50914",
+    accentRgb: "229,9,20",
     domains: ["www.netflix.com", "netflix.com"],
     externalOnly: true,
-    legalHint: "Every viewer must use their own Netflix account."
+    legalHint: "Every viewer must use their own Netflix account.",
+    loginUrl: "https://www.netflix.com/login",
+    browseUrl: "https://www.netflix.com/browse"
+  },
+  {
+    id: "hulu",
+    name: "Hulu",
+    tag: "H",
+    accent: "#1ce783",
+    accentRgb: "28,231,131",
+    domains: ["www.hulu.com", "hulu.com"],
+    externalOnly: true,
+    legalHint: "Users sign in with personal Hulu plans.",
+    loginUrl: "https://auth.hulu.com/web/login",
+    browseUrl: "https://www.hulu.com/hub/home"
   },
   {
     id: "disney",
     name: "Disney+",
     tag: "D+",
     accent: "#113ccf",
+    accentRgb: "17,60,207",
     domains: ["www.disneyplus.com", "disneyplus.com"],
     externalOnly: true,
-    legalHint: "Sync room coordinates playback; no stream rebroadcasting."
+    legalHint: "Sync room coordinates playback; no stream rebroadcasting.",
+    loginUrl: "https://www.disneyplus.com/login",
+    browseUrl: "https://www.disneyplus.com/home"
+  },
+  {
+    id: "max",
+    name: "Max",
+    tag: "M",
+    accent: "#5e3bff",
+    accentRgb: "94,59,255",
+    domains: ["play.max.com", "www.max.com", "max.com"],
+    externalOnly: true,
+    legalHint: "Each viewer needs eligible Max access.",
+    loginUrl: "https://auth.max.com/login",
+    browseUrl: "https://play.max.com"
   },
   {
     id: "prime",
     name: "Prime Video",
     tag: "P",
     accent: "#00a8e1",
+    accentRgb: "0,168,225",
     domains: ["www.primevideo.com", "primevideo.com"],
     externalOnly: true,
-    legalHint: "Users should sign in with personal Prime subscriptions."
+    legalHint: "Users should sign in with personal Prime subscriptions.",
+    loginUrl: "https://www.primevideo.com/ap/signin",
+    browseUrl: "https://www.primevideo.com/storefront/home/"
+  },
+  {
+    id: "paramount",
+    name: "Paramount+",
+    tag: "P+",
+    accent: "#0078ff",
+    accentRgb: "0,120,255",
+    domains: ["www.paramountplus.com", "paramountplus.com"],
+    externalOnly: true,
+    legalHint: "Paramount+ parties require each viewer's own access.",
+    loginUrl: "https://www.paramountplus.com/account/signin/",
+    browseUrl: "https://www.paramountplus.com"
+  },
+  {
+    id: "peacock",
+    name: "Peacock",
+    tag: "PK",
+    accent: "#ffd400",
+    accentRgb: "255,212,0",
+    domains: ["www.peacocktv.com", "peacocktv.com"],
+    externalOnly: true,
+    legalHint: "Open Peacock in secure tab for account login.",
+    loginUrl: "https://www.peacocktv.com/signin",
+    browseUrl: "https://www.peacocktv.com/watch/home"
+  },
+  {
+    id: "crunchyroll",
+    name: "Crunchyroll",
+    tag: "CR",
+    accent: "#f47521",
+    accentRgb: "244,117,33",
+    domains: ["www.crunchyroll.com", "crunchyroll.com"],
+    externalOnly: true,
+    legalHint: "Anime parties require user-owned Crunchyroll access.",
+    loginUrl: "https://sso.crunchyroll.com/login",
+    browseUrl: "https://www.crunchyroll.com"
   },
   {
     id: "youtube",
     name: "YouTube",
     tag: "YT",
     accent: "#ff0033",
+    accentRgb: "255,0,51",
     domains: ["www.youtube.com", "youtube.com", "youtu.be"],
     externalOnly: true,
-    legalHint: "Use official YouTube links and respect creator rights."
+    legalHint: "Use official YouTube links and respect creator rights.",
+    loginUrl: "https://accounts.google.com/ServiceLogin?service=youtube",
+    browseUrl: "https://www.youtube.com"
+  },
+  {
+    id: "twitch",
+    name: "Twitch",
+    tag: "TW",
+    accent: "#9146ff",
+    accentRgb: "145,70,255",
+    domains: ["www.twitch.tv", "twitch.tv"],
+    externalOnly: true,
+    legalHint: "Live content opens on official Twitch pages.",
+    loginUrl: "https://www.twitch.tv/login",
+    browseUrl: "https://www.twitch.tv/directory"
+  },
+  {
+    id: "appletv",
+    name: "Apple TV+",
+    tag: "TV+",
+    accent: "#b6b6b6",
+    accentRgb: "182,182,182",
+    domains: ["tv.apple.com", "www.apple.com"],
+    externalOnly: true,
+    legalHint: "Users authenticate with Apple ID through Apple pages.",
+    loginUrl: "https://tv.apple.com",
+    browseUrl: "https://tv.apple.com"
+  },
+  {
+    id: "tubi",
+    name: "Tubi",
+    tag: "TB",
+    accent: "#ff5f26",
+    accentRgb: "255,95,38",
+    domains: ["tubitv.com", "www.tubitv.com"],
+    externalOnly: true,
+    legalHint: "Free catalog, still open official Tubi page for source links.",
+    loginUrl: "https://tubitv.com/signin",
+    browseUrl: "https://tubitv.com"
   },
   {
     id: "direct",
     name: "Licensed Direct URL",
     tag: "URL",
     accent: "#2d72ff",
+    accentRgb: "45,114,255",
     domains: ["commondatastorage.googleapis.com"],
     externalOnly: false,
-    legalHint: "Host only content you own or are licensed to distribute."
+    legalHint: "Host only content you own or are licensed to distribute.",
+    loginUrl: "https://example.com",
+    browseUrl: "https://example.com"
   }
 ];
 
@@ -215,8 +336,14 @@ const ChatBubble = memo(function ChatBubble({ message }: { message: ChatMessage 
 });
 
 function App() {
+  const navigate = useNavigate();
+  const location = useLocation();
+
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(() =>
     localStorage.getItem(SERVICE_KEY)
+  );
+  const [serviceAuth, setServiceAuth] = useState<Record<string, boolean>>(() =>
+    readJson<Record<string, boolean>>(SERVICE_AUTH_KEY, {})
   );
   const [session, setSession] = useState<Session | null>(() => readJson(SESSION_KEY, null));
   const [recentProfiles, setRecentProfiles] = useState<string[]>(() => readJson(PROFILES_KEY, []));
@@ -226,6 +353,8 @@ function App() {
 
   const [authName, setAuthName] = useState("");
   const [authError, setAuthError] = useState("");
+  const [authGuided, setAuthGuided] = useState(false);
+  const [authInfo, setAuthInfo] = useState("");
 
   const [roomCode, setRoomCode] = useState("");
   const [mediaTitle, setMediaTitle] = useState("");
@@ -270,6 +399,9 @@ function App() {
     () => getServiceById(selectedServiceId || session?.serviceId),
     [selectedServiceId, session?.serviceId]
   );
+  const themeClass = `theme-${selectedService.id}`;
+  const serviceConnected = selectedService.id === "direct" || !!serviceAuth[selectedService.id];
+  const currentPath = location.pathname || "/";
 
   const username = session?.username ?? "";
   const normalizedRoomCode = roomCode.trim().toUpperCase();
@@ -327,8 +459,16 @@ function App() {
     }
   }, [selectedService.domains, watchUrl]);
 
+  const domainCompliant = selectedService.externalOnly
+    ? allowedDomainStatus === "allowed"
+    : allowedDomainStatus !== "invalid";
+
   const launchDisabled =
-    !session || !rightsConfirmed || allowedDomainStatus === "invalid" || !normalizedRoomCode;
+    !session ||
+    !rightsConfirmed ||
+    !domainCompliant ||
+    !normalizedRoomCode ||
+    !serviceConnected;
 
   const flashNotice = useCallback((message: string) => {
     setNotice(message);
@@ -388,6 +528,26 @@ function App() {
     [session]
   );
 
+  const patchServiceAuth = useCallback((serviceId: string, value: boolean) => {
+    setServiceAuth((current) => {
+      const updated = { ...current, [serviceId]: value };
+      writeJson(SERVICE_AUTH_KEY, updated);
+      return updated;
+    });
+  }, []);
+
+  const openSecureServiceTab = useCallback(
+    async (url: string, toolbarColor: string) => {
+      if (!url) return;
+      if (Capacitor.isNativePlatform()) {
+        await Browser.open({ url, toolbarColor, presentationStyle: "fullscreen" });
+        return;
+      }
+      window.open(url, "_blank", "noopener,noreferrer");
+    },
+    []
+  );
+
   const patchSettings = useCallback((next: Partial<UserSettings>) => {
     setSettings((current) => {
       const updated = { ...current, ...next };
@@ -401,6 +561,22 @@ function App() {
     if (next) writeJson(SESSION_KEY, next);
     else localStorage.removeItem(SESSION_KEY);
   }, []);
+
+  const switchProfile = useCallback(() => {
+    persistSession(null);
+    setRoomState(null);
+    setJoinPending(false);
+    setAuthError("");
+    navigate("/auth");
+  }, [navigate, persistSession]);
+
+  const resetServiceSelection = useCallback(() => {
+    localStorage.removeItem(SERVICE_KEY);
+    setSelectedServiceId(null);
+    setAuthGuided(false);
+    setAuthInfo("");
+    navigate("/services");
+  }, [navigate]);
 
   const publishRoomState = useCallback(
     (next: Partial<RoomState>) => {
@@ -423,12 +599,89 @@ function App() {
   const chooseService = useCallback((serviceId: string) => {
     persistServiceChoice(serviceId);
     setAuthError("");
-  }, [persistServiceChoice]);
+    setAuthGuided(false);
+    setAuthInfo("");
+    navigate("/auth");
+  }, [navigate, persistServiceChoice]);
+
+  const startServiceSignIn = useCallback(async () => {
+    if (selectedService.id === "direct") {
+      patchServiceAuth("direct", true);
+      setAuthGuided(true);
+      setAuthInfo("Direct URL mode does not require external account sign-in.");
+      return;
+    }
+    try {
+      await openSecureServiceTab(selectedService.loginUrl, selectedService.accent);
+      setAuthGuided(true);
+      setAuthInfo(
+        `Secure ${selectedService.name} tab opened. Sign in there, then return and confirm below.`
+      );
+    } catch {
+      setAuthInfo("Could not open sign-in tab. Try again.");
+    }
+  }, [
+    openSecureServiceTab,
+    patchServiceAuth,
+    selectedService.accent,
+    selectedService.id,
+    selectedService.loginUrl,
+    selectedService.name
+  ]);
+
+  const confirmServiceSignIn = useCallback(() => {
+    patchServiceAuth(selectedService.id, true);
+    setAuthInfo(`${selectedService.name} sign-in marked complete.`);
+    flashNotice(`${selectedService.name} connected for this profile.`);
+  }, [flashNotice, patchServiceAuth, selectedService.id, selectedService.name]);
+
+  const openServiceCatalog = useCallback(async () => {
+    const target =
+      selectedService.id === "direct"
+        ? watchUrl || SAMPLE_VIDEO
+        : selectedService.browseUrl;
+    try {
+      await openSecureServiceTab(target, selectedService.accent);
+      flashNotice(`${selectedService.name} opened in secure tab.`);
+    } catch {
+      flashNotice("Could not open service tab.");
+    }
+  }, [
+    flashNotice,
+    openSecureServiceTab,
+    selectedService.accent,
+    selectedService.browseUrl,
+    selectedService.id,
+    selectedService.name,
+    watchUrl
+  ]);
+
+  const pasteWatchUrlFromClipboard = useCallback(async () => {
+    if (!navigator.clipboard?.readText) {
+      flashNotice("Clipboard read is unavailable on this device.");
+      return;
+    }
+    try {
+      const clipped = (await navigator.clipboard.readText()).trim();
+      if (!clipped) {
+        flashNotice("Clipboard is empty.");
+        return;
+      }
+      setWatchUrl(clipped);
+      flashNotice("Watch link pasted from clipboard.");
+    } catch {
+      flashNotice("Clipboard read failed. Paste manually.");
+    }
+  }, [flashNotice]);
 
   const handleAuthSubmit = useCallback(
     (event: FormEvent) => {
       event.preventDefault();
       if (!selectedService.id) return;
+      if (!serviceConnected) {
+        setAuthError(`Sign in to ${selectedService.name} in the secure tab first.`);
+        return;
+      }
       const clean = authName.trim();
       const generated = `Guest${Math.floor(Math.random() * 900 + 100)}`;
       const nextName = clean || generated;
@@ -437,29 +690,57 @@ function App() {
       setAuthError("");
       setAuthName("");
       unlockAchievement("Profile Ready", `${nextName} connected to ${selectedService.name}`);
+      navigate("/lobby");
     },
-    [authName, persistSession, rememberProfile, selectedService.id, selectedService.name, unlockAchievement]
+    [
+      authName,
+      persistSession,
+      rememberProfile,
+      selectedService.id,
+      selectedService.name,
+      serviceConnected,
+      unlockAchievement,
+      navigate
+    ]
   );
 
   const useQuickGuest = useCallback(() => {
     if (!selectedService.id) return;
+    if (!serviceConnected) {
+      setAuthError(`Sign in to ${selectedService.name} in the secure tab first.`);
+      return;
+    }
     const name = `Guest${Math.floor(Math.random() * 900 + 100)}`;
     persistSession({ username: name, serviceId: selectedService.id });
     rememberProfile(name);
     setAuthError("");
     setAuthName("");
     unlockAchievement("Quick Entry", `${name} joined instantly`);
-  }, [persistSession, rememberProfile, selectedService.id, unlockAchievement]);
+    navigate("/lobby");
+  }, [
+    persistSession,
+    rememberProfile,
+    selectedService.id,
+    selectedService.name,
+    serviceConnected,
+    unlockAchievement,
+    navigate
+  ]);
 
   const loginRecentProfile = useCallback(
     (profile: string) => {
       if (!selectedService.id) return;
+      if (!serviceConnected) {
+        setAuthError(`Sign in to ${selectedService.name} in the secure tab first.`);
+        return;
+      }
       persistSession({ username: profile, serviceId: selectedService.id });
       rememberProfile(profile);
       setAuthError("");
       setAuthName("");
+      navigate("/lobby");
     },
-    [persistSession, rememberProfile, selectedService.id]
+    [persistSession, rememberProfile, selectedService.id, selectedService.name, serviceConnected, navigate]
   );
 
   const generateRoomCode = useCallback(() => {
@@ -527,6 +808,7 @@ function App() {
       localStorage.setItem(ACH_FIRST_ROOM_KEY, "1");
       unlockAchievement("Achievement Unlocked", "Launched your first public-capable lobby");
     }
+    navigate("/room");
   }, [
     appendChat,
     mediaTitle,
@@ -538,11 +820,16 @@ function App() {
     selectedService.name,
     session,
     unlockAchievement,
-    watchUrl
+    watchUrl,
+    navigate
   ]);
 
   const handleJoinRoom = useCallback(() => {
     if (!session || !roomKey) return;
+    if (!serviceConnected) {
+      setAuthError(`Sign in to ${selectedService.name} in secure tab before joining.`);
+      return;
+    }
     const loaded = normalizeRoomState(readJson<RoomState | null>(roomKey, null));
     if (!loaded) {
       setAuthError("No room found with that code.");
@@ -567,6 +854,7 @@ function App() {
       setAuthError("");
       rememberRoom(loaded.roomCode);
       pushLog(`Joined room ${loaded.roomCode}`);
+      navigate("/room");
       return;
     }
 
@@ -592,8 +880,11 @@ function App() {
     pushLog,
     rememberRoom,
     roomKey,
+    selectedService.name,
     selectedService.id,
-    session
+    serviceConnected,
+    session,
+    navigate
   ]);
 
   const acceptRules = useCallback(() => {
@@ -773,8 +1064,10 @@ function App() {
   const openOfficialMedia = useCallback(() => {
     const targetUrl = roomState?.mediaUrl || watchUrl;
     if (!targetUrl) return;
-    window.open(targetUrl, "_blank", "noopener,noreferrer");
-  }, [roomState?.mediaUrl, watchUrl]);
+    void openSecureServiceTab(targetUrl, effectiveService.accent).catch(() => {
+      window.open(targetUrl, "_blank", "noopener,noreferrer");
+    });
+  }, [effectiveService.accent, openSecureServiceTab, roomState?.mediaUrl, watchUrl]);
 
   const togglePlayback = useCallback(() => {
     if (!isHost || !roomState || !videoRef.current) return;
@@ -819,6 +1112,36 @@ function App() {
       localStorage.setItem(SERVICE_KEY, session.serviceId);
     }
   }, [selectedServiceId, session?.serviceId]);
+
+  useEffect(() => {
+    const knownPaths = new Set(["/services", "/auth", "/lobby", "/room"]);
+    if (!knownPaths.has(currentPath)) {
+      if (!selectedServiceId) navigate("/services", { replace: true });
+      else if (!session) navigate("/auth", { replace: true });
+      else if (roomState) navigate("/room", { replace: true });
+      else navigate("/lobby", { replace: true });
+      return;
+    }
+
+    if (!selectedServiceId && currentPath !== "/services") {
+      navigate("/services", { replace: true });
+      return;
+    }
+    if (selectedServiceId && !session && currentPath !== "/auth") {
+      navigate("/auth", { replace: true });
+      return;
+    }
+    if (selectedServiceId && session && !roomState && currentPath === "/room") {
+      navigate("/lobby", { replace: true });
+      return;
+    }
+  }, [currentPath, navigate, roomState, selectedServiceId, session]);
+
+  useEffect(() => {
+    if (selectedService.id !== "direct") return;
+    if (serviceAuth.direct) return;
+    patchServiceAuth("direct", true);
+  }, [patchServiceAuth, selectedService.id, serviceAuth.direct]);
 
   useEffect(() => {
     if (activeTab === "tools" && !isHost) setActiveTab("chat");
@@ -888,6 +1211,7 @@ function App() {
         setAuthError("");
         rememberRoom(loaded.roomCode);
         pushLog(`Host approved ${session.username}`);
+        navigate("/room");
       }
       setRoomState((current) => {
         if (!current) return current;
@@ -896,7 +1220,7 @@ function App() {
       });
     }, 900);
     return () => clearInterval(poll);
-  }, [joinPending, pushLog, rememberRoom, roomKey, session]);
+  }, [joinPending, pushLog, rememberRoom, roomKey, session, navigate]);
 
   useEffect(() => {
     if (!roomState || !videoRef.current) return;
@@ -941,13 +1265,14 @@ function App() {
     };
   }, []);
 
-  if (!selectedServiceId) {
+  if (!selectedServiceId || currentPath === "/services") {
     return (
       <main className="service-root">
         <section className="service-card">
+          <p className="route-pill">Step 1 / 4 • Service</p>
           <h1>Choose your streaming host</h1>
           <p className="subtle">
-            Pick the service first. Authentication starts right after this step.
+            Pick the service first. We then open its official sign-in in a secure in-app browser tab.
           </p>
           <div className="service-grid">
             {serviceCatalog.map((service) => (
@@ -974,14 +1299,52 @@ function App() {
     );
   }
 
-  if (!session) {
+  if (!session || currentPath === "/auth") {
     return (
-      <main className="auth-root">
+      <main className={`auth-root ${themeClass}`}>
         <section className="auth-card">
+          <p className="route-pill">Step 2 / 4 • Authentication</p>
           <h1>KinoPulse Rooms</h1>
           <p className="subtle">
-            Selected: <strong>{selectedService.name}</strong>. Type a name or continue instantly.
+            Selected: <strong>{selectedService.name}</strong>. Secure in-app authentication starts below.
           </p>
+          <section className="auth-browser-card">
+            <div className="auth-browser-head">
+              <h3>{selectedService.name} secure sign-in</h3>
+              <span className={`chip ${serviceConnected ? "chip-safe" : ""}`}>
+                {serviceConnected ? "Connected" : "Pending"}
+              </span>
+            </div>
+            <p className="subtle">
+              We open the official provider page in a secure browser tab. KinoPulse never captures your
+              credentials.
+            </p>
+            <ol className="auth-steps">
+              <li>Open official sign-in tab.</li>
+              <li>Authenticate directly with {selectedService.name}.</li>
+              <li>Return and confirm to continue profile login.</li>
+            </ol>
+            <div className="button-row">
+              <button type="button" className="browser-cta" onClick={startServiceSignIn}>
+                Open secure sign-in tab
+              </button>
+              <button
+                type="button"
+                onClick={confirmServiceSignIn}
+                disabled={!authGuided && !serviceConnected}
+              >
+                I completed sign-in
+              </button>
+              <button type="button" onClick={openServiceCatalog}>
+                Open {selectedService.name} home
+              </button>
+            </div>
+            {authInfo && <p className="ok">{authInfo}</p>}
+            <p className="note">
+              Policy-safe pattern: official provider auth in system/custom tab, no embedded credential
+              interception.
+            </p>
+          </section>
           {recentProfiles.length > 0 && (
             <div className="quick-profiles">
               {recentProfiles.map((profile) => (
@@ -1002,11 +1365,13 @@ function App() {
             </label>
             {authError && <p className="warn">{authError}</p>}
             <div className="button-row">
-              <button type="submit">Continue</button>
-              <button type="button" onClick={useQuickGuest}>
+              <button type="submit" disabled={!serviceConnected}>
+                Continue
+              </button>
+              <button type="button" onClick={useQuickGuest} disabled={!serviceConnected}>
                 Quick guest
               </button>
-              <button type="button" onClick={() => setSelectedServiceId(null)}>
+              <button type="button" onClick={resetServiceSelection}>
                 Change service
               </button>
             </div>
@@ -1022,6 +1387,28 @@ function App() {
       <p className="subtle">
         Host: <strong>{selectedService.name}</strong> • {selectedService.legalHint}
       </p>
+      <div className="auth-browser-card lobby-auth-card">
+        <div className="auth-browser-head">
+          <h3>Official account handoff</h3>
+          <span className={`chip ${serviceConnected ? "chip-safe" : ""}`}>
+            {serviceConnected ? "Signed in" : "Sign-in required"}
+          </span>
+        </div>
+        <p className="subtle">
+          Keep authentication and content selection in official service pages for policy compliance.
+        </p>
+        <div className="button-row">
+          <button type="button" className="browser-cta" onClick={startServiceSignIn}>
+            Open {selectedService.name} sign-in tab
+          </button>
+          <button type="button" onClick={openServiceCatalog}>
+            Open service catalog
+          </button>
+          <button type="button" onClick={confirmServiceSignIn}>
+            I finished sign-in
+          </button>
+        </div>
+      </div>
       <label>
         Room code
         <input
@@ -1039,6 +1426,9 @@ function App() {
         </button>
         <button type="button" onClick={copyInvite}>
           Copy invite
+        </button>
+        <button type="button" onClick={pasteWatchUrlFromClipboard}>
+          Paste link
         </button>
       </div>
       <label>
@@ -1059,9 +1449,16 @@ function App() {
       </label>
       {allowedDomainStatus === "allowed" && <p className="ok">Service domain validated.</p>}
       {allowedDomainStatus === "blocked" && (
-        <p className="warn">Domain differs from selected service. Verify legal rights before launch.</p>
+        <p className="warn">
+          Domain differs from selected service. Launch is blocked until link matches {selectedService.name}.
+        </p>
       )}
       {allowedDomainStatus === "invalid" && <p className="warn">Invalid URL. Use full https:// link.</p>}
+      {!serviceConnected && (
+        <p className="warn">
+          Complete {selectedService.name} sign-in in secure tab before launching or sharing room.
+        </p>
+      )}
       <label className="check">
         <input
           type="checkbox"
@@ -1102,8 +1499,12 @@ function App() {
             <p className="subtle">
               Logged in as <strong>{username}</strong>
             </p>
+            <p className="subtle">
+              Backend mode:{" "}
+              <strong>{SUPABASE_CONFIGURED ? "Supabase realtime enabled" : "Local fallback mode"}</strong>
+            </p>
             <div className="button-row">
-              <button type="button" onClick={() => persistSession(null)}>
+              <button type="button" onClick={switchProfile}>
                 Switch profile
               </button>
             </div>
@@ -1111,6 +1512,10 @@ function App() {
 
           <section className="panel">
             <h3>Streaming host</h3>
+            <p className="subtle">
+              Current auth state:{" "}
+              <strong>{serviceConnected ? `${selectedService.name} connected` : "sign-in required"}</strong>
+            </p>
             <div className="service-chip-row">
               {serviceCatalog.map((service) => (
                 <button
@@ -1122,6 +1527,14 @@ function App() {
                   {service.name}
                 </button>
               ))}
+            </div>
+            <div className="button-row">
+              <button type="button" className="browser-cta" onClick={startServiceSignIn}>
+                Open secure sign-in tab
+              </button>
+              <button type="button" onClick={confirmServiceSignIn}>
+                Mark sign-in complete
+              </button>
             </div>
           </section>
 
@@ -1183,13 +1596,14 @@ function App() {
     </div>
   ) : null;
 
-  if (!partyLive) {
+  if (currentPath === "/lobby" || !partyLive) {
     return (
-      <main className={`app app-pre-room ${settings.reduceMotion ? "reduce-motion" : ""}`}>
+      <main className={`app app-pre-room ${themeClass} ${settings.reduceMotion ? "reduce-motion" : ""}`}>
         <div className="ambient ambient-a" />
         <div className="ambient ambient-b" />
         <section className="card pre-room-card">
           <header className="hero">
+            <p className="route-pill">Step 3 / 4 • Lobby setup</p>
             <div className="hero-topline">
               <p className="eyebrow">KinoSpolu Labs • Pulse Social</p>
               <span className="hero-badge">Auto-login active for {username}</span>
@@ -1201,13 +1615,14 @@ function App() {
             <div className="status-row">
               <span className="chip chip-live">Ready to launch</span>
               <span className="chip">Service: {selectedService.name}</span>
+              <span className="chip">{SUPABASE_CONFIGURED ? "Supabase connected" : "Local mode active"}</span>
             </div>
           </header>
           <div className="pre-room-actions">
             <button type="button" onClick={() => setSettingsOpen(true)}>
               Open settings
             </button>
-            <button type="button" onClick={() => persistSession(null)}>
+            <button type="button" onClick={switchProfile}>
               Switch profile
             </button>
           </div>
@@ -1225,11 +1640,12 @@ function App() {
   }
 
   return (
-    <main className={`app app-room ${settings.reduceMotion ? "reduce-motion" : ""}`}>
+    <main className={`app app-room ${themeClass} ${settings.reduceMotion ? "reduce-motion" : ""}`}>
       <div className="ambient ambient-a" />
       <div className="ambient ambient-b" />
       <section className="room-shell">
         <header className="room-header">
+          <p className="route-pill">Step 4 / 4 • Live room</p>
           <div className="hero-topline">
             <p className="eyebrow">KinoSpolu Labs • Pulse Social</p>
             <span className="hero-badge">Auto-login active for {username}</span>
@@ -1241,6 +1657,7 @@ function App() {
             <span className="chip">Engagement: {engagementScore}</span>
             <span className="chip">Role: {isHost ? "Host" : "Viewer"}</span>
             <span className="chip">{roomState.privateLobby ? "Private lobby" : "Public lobby"}</span>
+            <span className="chip">{SUPABASE_CONFIGURED ? "Supabase connected" : "Local mode active"}</span>
             {roomState.chatLocked && <span className="chip">Chat locked</span>}
             {roomState.slowModeSec > 0 && <span className="chip">Slow mode {roomState.slowModeSec}s</span>}
           </div>
@@ -1249,7 +1666,7 @@ function App() {
             <button type="button" onClick={() => setSettingsOpen(true)}>
               Settings
             </button>
-            <button type="button" onClick={() => persistSession(null)}>
+            <button type="button" onClick={switchProfile}>
               Switch profile
             </button>
           </div>
@@ -1289,6 +1706,9 @@ function App() {
             </button>
             <button type="button" onClick={openOfficialMedia}>
               Open {effectiveService.name}
+            </button>
+            <button type="button" onClick={startServiceSignIn}>
+              Re-auth
             </button>
           </div>
         </section>
