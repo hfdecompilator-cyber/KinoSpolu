@@ -11,6 +11,7 @@ import {
 const STORAGE_PREFIX = "kinopulse.v3";
 const SESSION_KEY = `${STORAGE_PREFIX}.session`;
 const SETTINGS_KEY = `${STORAGE_PREFIX}.settings`;
+const PROFILES_KEY = `${STORAGE_PREFIX}.profiles`;
 const SAMPLE_VIDEO =
   "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
 const allowedHosts = [
@@ -84,6 +85,12 @@ const defaultSettings: UserSettings = {
   autoSyncOnJoin: true
 };
 
+const upsertProfile = (profiles: string[], profile: string) => {
+  const normalized = profile.trim();
+  if (!normalized) return profiles;
+  return [normalized, ...profiles.filter((entry) => entry !== normalized)].slice(0, 6);
+};
+
 const normalizeRoomState = (state: RoomState | null): RoomState | null => {
   if (!state) return null;
   return {
@@ -140,6 +147,9 @@ const ChatBubble = memo(function ChatBubble({ message }: { message: ChatMessage 
 
 function App() {
   const [session, setSession] = useState<Session | null>(() => readJson(SESSION_KEY, null));
+  const [recentProfiles, setRecentProfiles] = useState<string[]>(() =>
+    readJson<string[]>(PROFILES_KEY, [])
+  );
   const [settings, setSettings] = useState<UserSettings>(() =>
     readJson<UserSettings>(SETTINGS_KEY, defaultSettings)
   );
@@ -240,6 +250,14 @@ function App() {
     });
   }, []);
 
+  const rememberProfile = useCallback((profile: string) => {
+    setRecentProfiles((current) => {
+      const updated = upsertProfile(current, profile);
+      writeJson(PROFILES_KEY, updated);
+      return updated;
+    });
+  }, []);
+
   const flashLobbyNotice = useCallback((message: string) => {
     setLobbyNotice(message);
     if (noticeTimeoutRef.current !== null) {
@@ -272,21 +290,37 @@ function App() {
     (event: FormEvent) => {
       event.preventDefault();
       const clean = authName.trim();
-      if (clean.length < 2) {
-        setAuthError("Use at least 2 characters.");
+      const generated = `Guest${Math.floor(Math.random() * 900 + 100)}`;
+      const nextName = clean || generated;
+      if (nextName.length < 2) {
+        setAuthError("Name is too short.");
         return;
       }
-      persistSession({ username: clean });
+      persistSession({ username: nextName });
+      rememberProfile(nextName);
       setAuthError("");
+      setAuthName("");
     },
-    [authName, persistSession]
+    [authName, persistSession, rememberProfile]
   );
 
   const useQuickGuest = useCallback(() => {
     const name = `Guest${Math.floor(Math.random() * 900 + 100)}`;
     persistSession({ username: name });
+    rememberProfile(name);
     setAuthError("");
-  }, [persistSession]);
+    setAuthName("");
+  }, [persistSession, rememberProfile]);
+
+  const loginRecentProfile = useCallback(
+    (profile: string) => {
+      persistSession({ username: profile });
+      rememberProfile(profile);
+      setAuthError("");
+      setAuthName("");
+    },
+    [persistSession, rememberProfile]
+  );
 
   const generateRoomCode = useCallback(() => {
     const generated = `PULSE${Math.floor(Math.random() * 900 + 100)}`;
@@ -418,6 +452,30 @@ function App() {
     pushLog(roomState.chatLocked ? "Chat unlocked" : "Chat locked");
   }, [isHost, publishRoomState, pushLog, roomState]);
 
+  const pauseForAll = useCallback(() => {
+    if (!isHost || !roomState || !videoRef.current) return;
+    videoRef.current.pause();
+    publishRoomState({ playing: false, playhead: videoRef.current.currentTime });
+    pushLog("Host paused playback for everyone");
+  }, [isHost, publishRoomState, pushLog, roomState]);
+
+  const playForAll = useCallback(() => {
+    if (!isHost || !roomState || !videoRef.current) return;
+    const start = videoRef.current.play();
+    if (start) start.catch(() => {});
+    publishRoomState({ playing: true, playhead: videoRef.current.currentTime });
+    pushLog("Host resumed playback for everyone");
+  }, [isHost, publishRoomState, pushLog, roomState]);
+
+  const restartForAll = useCallback(() => {
+    if (!isHost || !roomState || !videoRef.current) return;
+    videoRef.current.currentTime = 0;
+    publishRoomState({ playhead: 0, playing: true });
+    const start = videoRef.current.play();
+    if (start) start.catch(() => {});
+    pushLog("Host restarted playback from 00:00");
+  }, [isHost, publishRoomState, pushLog, roomState]);
+
   const setSlowMode = useCallback(
     (value: number) => {
       if (!isHost || !roomState) return;
@@ -540,6 +598,11 @@ function App() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!username) return;
+    rememberProfile(username);
+  }, [rememberProfile, username]);
 
   useEffect(() => {
     if (!username) return;
@@ -677,19 +740,33 @@ function App() {
       <main className="auth-root">
         <section className="auth-card">
           <h1>KinoPulse Rooms</h1>
-          <p className="subtle">One-step profile. Auto-login restores after app restart.</p>
+          <p className="subtle">Type a name or tap once to continue instantly.</p>
+          {recentProfiles.length > 0 && (
+            <div className="quick-profiles">
+              {recentProfiles.map((profile) => (
+                <button
+                  key={profile}
+                  type="button"
+                  className="profile-pill"
+                  onClick={() => loginRecentProfile(profile)}
+                >
+                  {profile}
+                </button>
+              ))}
+            </div>
+          )}
           <form className="report" onSubmit={handleAuthSubmit}>
             <label>
               Display name
               <input
                 value={authName}
                 onChange={(event) => setAuthName(event.target.value)}
-                placeholder="your_name"
+                placeholder="Leave blank for auto guest"
               />
             </label>
             {authError && <p className="warn">{authError}</p>}
             <div className="button-row">
-              <button type="submit">Start watching</button>
+              <button type="submit">Continue</button>
               <button type="button" onClick={useQuickGuest}>
                 Quick guest
               </button>
@@ -786,6 +863,9 @@ function App() {
               </button>
               <button type="button" onClick={handleJoinRoom}>
                 Join room
+              </button>
+              <button type="button" onClick={handleJoinRoom} disabled={!roomKey}>
+                One-tap rejoin
               </button>
             </div>
           </section>
@@ -896,6 +976,7 @@ function App() {
             {roomState && isHost && (
               <section className="queue-box">
                 <h3>Private lobby controls</h3>
+                <p className="subtle">Host has full pause/play/restart authority for everyone in room.</p>
                 <div className="button-row">
                   <button type="button" onClick={togglePrivateLobby}>
                     {roomState.privateLobby ? "Disable private mode" : "Enable private mode"}
@@ -916,6 +997,17 @@ function App() {
                   </button>
                   <button type="button" onClick={() => setSlowMode(10)}>
                     Slow 10s
+                  </button>
+                </div>
+                <div className="host-playback-row">
+                  <button type="button" onClick={pauseForAll}>
+                    Pause all
+                  </button>
+                  <button type="button" onClick={playForAll}>
+                    Play all
+                  </button>
+                  <button type="button" onClick={restartForAll}>
+                    Restart 00:00
                   </button>
                 </div>
                 <div className="inline-form">
