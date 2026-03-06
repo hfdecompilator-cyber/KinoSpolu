@@ -22,6 +22,7 @@
   --glass-panel: linear-gradient(165deg, rgba(17, 28, 49, 0.76), rgba(8, 14, 26, 0.7));
   --glass-border: rgba(181, 199, 231, 0.34);
   --glass-shadow: 0 18px 42px rgba(3, 8, 20, 0.58);
+  --app-frame-max: 430px;
 }
 
 * {
@@ -978,7 +979,7 @@ button:disabled {
 
 .floating-dock {
   position: fixed;
-  right: max(10px, env(safe-area-inset-right));
+  right: max(10px, calc((100vw - min(var(--app-frame-max), 100vw)) / 2 + 10px));
   bottom: max(14px, env(safe-area-inset-bottom));
   z-index: 32;
   display: grid;
@@ -990,13 +991,17 @@ button:disabled {
   min-width: 118px;
   border-radius: 999px;
   padding: 9px 14px;
-  box-shadow: 0 10px 24px rgba(5, 11, 26, 0.46);
+  background: linear-gradient(155deg, rgba(88, 122, 255, 0.32), rgba(176, 107, 240, 0.28), rgba(34, 211, 238, 0.22));
+  border: 1px solid rgba(236, 246, 255, 0.48);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.38), 0 12px 24px rgba(5, 11, 26, 0.46);
   backdrop-filter: blur(10px);
+  animation: none;
 }
 
 .floating-dock button.active {
+  background: linear-gradient(155deg, rgba(var(--service-accent-rgb), 0.42), rgba(168, 85, 247, 0.34));
   box-shadow: 0 0 0 1px rgba(var(--service-accent-rgb), 0.48),
-    0 0 18px rgba(var(--service-accent-rgb), 0.34);
+    0 0 18px rgba(var(--service-accent-rgb), 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.36);
 }
 
 .floating-dock-room {
@@ -1005,9 +1010,9 @@ button:disabled {
 
 .floating-panel {
   position: fixed;
-  right: max(10px, env(safe-area-inset-right));
+  right: max(10px, calc((100vw - min(var(--app-frame-max), 100vw)) / 2 + 10px));
   bottom: max(150px, calc(138px + env(safe-area-inset-bottom)));
-  width: min(360px, calc(100vw - 18px));
+  width: min(372px, calc(min(var(--app-frame-max), 100vw) - 20px));
   max-height: min(56svh, 500px);
   overflow: auto;
   border-radius: 16px;
