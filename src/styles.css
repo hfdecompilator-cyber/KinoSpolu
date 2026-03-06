@@ -765,6 +765,10 @@ button:disabled {
   gap: 6px;
 }
 
+.emoji-strip.top-strip {
+  margin-bottom: 2px;
+}
+
 .emoji-chip {
   border-radius: 999px;
   min-width: 44px;

@@ -2126,6 +2126,27 @@ function App() {
                 <h2>Social lounge</h2>
                 <p className="subtle">Live room chat</p>
               </div>
+              <div className="emoji-strip top-strip">
+                {emojiPacks.slice(0, 6).map((emoji) => (
+                  <button
+                    key={`top-${emoji}`}
+                    type="button"
+                    className="emoji-chip"
+                    onClick={() => sendEmoji(emoji)}
+                    disabled={(!rulesAccepted && !isHost) || (!!roomState.chatLocked && !isHost)}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  className="emoji-chip ai"
+                  onClick={sendAiEmoticon}
+                  disabled={(!rulesAccepted && !isHost) || (!!roomState.chatLocked && !isHost)}
+                >
+                  AI mood
+                </button>
+              </div>
 
               {!isHost && !rulesAccepted && (
                 <div className="rules-gate">
