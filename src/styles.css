@@ -829,6 +829,15 @@ button:disabled {
   margin: 0;
 }
 
+.utility-page-card {
+  overflow: auto;
+  gap: 8px;
+}
+
+.utility-settings-grid {
+  grid-template-columns: 1fr;
+}
+
 .compact-room-composer {
   gap: 7px;
 }
@@ -850,6 +859,17 @@ button:disabled {
   border-radius: 12px;
   padding: 8px;
   background: rgba(7, 14, 27, 0.72);
+}
+
+.url-inline {
+  display: grid;
+  gap: 4px;
+  font-size: 0.82rem;
+}
+
+.url-inline input {
+  font-size: 0.78rem;
+  letter-spacing: 0;
 }
 
 .button-row {
@@ -983,7 +1003,11 @@ button:disabled {
 
 .player-utility-row button {
   flex: 1;
-  min-width: 130px;
+  min-width: 108px;
+}
+
+.room-host-controls {
+  gap: 7px;
 }
 
 .voice-tip {

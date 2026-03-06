@@ -615,6 +615,7 @@ function App() {
   const [authGuided, setAuthGuided] = useState(false);
   const [authInfo, setAuthInfo] = useState("");
   const [authAutoStartServiceId, setAuthAutoStartServiceId] = useState<string | null>(null);
+  const [accountNameDraft, setAccountNameDraft] = useState("");
   const [homeServiceId, setHomeServiceId] = useState<string>(() =>
     localStorage.getItem(SERVICE_KEY) || "twitch"
   );
@@ -1624,6 +1625,52 @@ function App() {
       .catch(() => flashNotice("Copy failed. Please copy manually."));
   }, [flashNotice, normalizedRoomCode, selectedService.name]);
 
+  const copyCurrentRoomUrl = useCallback(() => {
+    const target = roomState?.mediaUrl || watchUrl;
+    if (!target.trim()) {
+      flashNotice("No room URL available yet.");
+      return;
+    }
+    if (!navigator.clipboard?.writeText) {
+      flashNotice("Clipboard unavailable on this device.");
+      return;
+    }
+    void navigator.clipboard
+      .writeText(target)
+      .then(() => flashNotice("Room URL copied."))
+      .catch(() => flashNotice("Could not copy room URL."));
+  }, [flashNotice, roomState?.mediaUrl, watchUrl]);
+
+  const openSettingsPage = useCallback(() => {
+    navigate("/settings");
+  }, [navigate]);
+
+  const openAccountPage = useCallback(() => {
+    navigate("/account");
+  }, [navigate]);
+
+  const returnToPrimaryPage = useCallback(() => {
+    navigate(roomState ? "/room" : "/lobby");
+  }, [navigate, roomState]);
+
+  const saveAccountName = useCallback(() => {
+    if (!session) return;
+    const next = accountNameDraft.trim().slice(0, 24);
+    if (!next) {
+      flashNotice("Display name cannot be empty.");
+      return;
+    }
+    persistSession({ ...session, username: next });
+    rememberProfile(next);
+    if (roomState?.leader === session.username) {
+      publishRoomState({
+        leader: next,
+        approvedUsers: roomState.approvedUsers.map((entry) => (entry === session.username ? next : entry))
+      });
+    }
+    flashNotice(`Profile updated to ${next}.`);
+  }, [accountNameDraft, flashNotice, persistSession, publishRoomState, rememberProfile, roomState, session]);
+
   const handleLaunchRoom = useCallback(() => {
     if (!session || !roomKey) return;
     const state: RoomState = {
@@ -2068,6 +2115,10 @@ function App() {
   }, [selectedServiceId, session?.serviceId]);
 
   useEffect(() => {
+    setAccountNameDraft(session?.username ?? "");
+  }, [session?.username]);
+
+  useEffect(() => {
     if (currentPath !== "/room") return;
     if (!roomState?.mediaUrl || !session?.username || !effectiveService.externalOnly) return;
     const onceKey = `${STORAGE_PREFIX}.officialOpened.${roomState.roomCode}.${session.username}.${roomState.mediaUrl}`;
@@ -2195,7 +2246,7 @@ function App() {
   }, [backendHealth, pushLog, session]);
 
   useEffect(() => {
-    const knownPaths = new Set(["/services", "/auth", "/lobby", "/room"]);
+    const knownPaths = new Set(["/services", "/auth", "/lobby", "/room", "/settings", "/account"]);
     if (!knownPaths.has(currentPath)) {
       if (!selectedServiceId) navigate("/services", { replace: true });
       else if (!session) navigate("/auth", { replace: true });
@@ -2669,6 +2720,243 @@ function App() {
     );
   }
 
+  if (currentPath === "/account") {
+    return (
+      <main
+        className={`app app-pre-room viewport-lock ${themeClass} ${settings.reduceMotion ? "reduce-motion" : ""} ${
+          settings.cinematicButtons ? "cinematic-buttons" : ""
+        } ${settings.highContrast ? "high-contrast" : ""}`}
+      >
+        <div className="ambient ambient-a" />
+        <div className="ambient ambient-b" />
+        <section className="card compact-page-shell utility-page-card">
+          <header className="hero">
+            <p className="route-pill">Account</p>
+            <div className="hero-topline">
+              <img src={brandLogoPath} alt="KinoPulse logo" className="brand-logo" />
+              <span className="hero-badge">{selectedService.name} profile</span>
+            </div>
+            <div className="status-row">
+              <span className="chip chip-safe">Signed in</span>
+              <span className="chip">User: {session.username}</span>
+              <span className="chip">{backendLabel}</span>
+            </div>
+          </header>
+
+          <section className="panel">
+            <h2>Display profile</h2>
+            <label>
+              Display name
+              <input
+                value={accountNameDraft}
+                onChange={(event) => setAccountNameDraft(event.target.value)}
+                placeholder="Guest775"
+              />
+            </label>
+            <div className="button-row compact-row">
+              <button type="button" onClick={saveAccountName}>
+                Save profile
+              </button>
+              <button type="button" onClick={openSettingsPage}>
+                Open settings
+              </button>
+              <button type="button" onClick={returnToPrimaryPage}>
+                Back to room
+              </button>
+              <button type="button" onClick={switchProfile}>
+                Switch account
+              </button>
+            </div>
+            {notice && <p className="ok">{notice}</p>}
+          </section>
+
+          {recentProfiles.length > 0 && (
+            <section className="panel">
+              <h3>Recent profiles</h3>
+              <div className="quick-profiles">
+                {recentProfiles.map((profile) => (
+                  <button
+                    key={`account-${profile}`}
+                    type="button"
+                    className="profile-pill"
+                    onClick={() => {
+                      persistSession({ username: profile, serviceId: selectedService.id });
+                      rememberProfile(profile);
+                      flashNotice(`Switched to ${profile}.`);
+                    }}
+                  >
+                    {profile}
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
+
+          <section className="panel">
+            <h3>Helpful pro tips</h3>
+            <ul>
+              <li>Use short room codes for fewer join mistakes on mobile.</li>
+              <li>Host should paste the exact watch URL before launching for faster sync.</li>
+              <li>Headphones + push-to-talk reduce echo in group voice rooms.</li>
+            </ul>
+          </section>
+        </section>
+      </main>
+    );
+  }
+
+  if (currentPath === "/settings") {
+    return (
+      <main
+        className={`app app-pre-room viewport-lock ${themeClass} ${settings.reduceMotion ? "reduce-motion" : ""} ${
+          settings.cinematicButtons ? "cinematic-buttons" : ""
+        } ${settings.highContrast ? "high-contrast" : ""}`}
+      >
+        <div className="ambient ambient-a" />
+        <div className="ambient ambient-b" />
+        <section className="card compact-page-shell utility-page-card">
+          <header className="hero">
+            <p className="route-pill">Settings</p>
+            <div className="hero-topline">
+              <img src={brandLogoPath} alt="KinoPulse logo" className="brand-logo" />
+              <span className="hero-badge">Room controls & accessibility</span>
+            </div>
+            <div className="button-row compact-row">
+              <button type="button" onClick={openAccountPage}>
+                Account
+              </button>
+              <button type="button" onClick={returnToPrimaryPage}>
+                Back to room
+              </button>
+            </div>
+          </header>
+
+          <section className="panel utility-settings-grid">
+            <label className="setting-item">
+              <input
+                type="checkbox"
+                checked={settings.compactChat}
+                onChange={(event) => patchSettings({ compactChat: event.target.checked })}
+              />
+              Compact chat bubbles
+            </label>
+            <label className="setting-item">
+              <input
+                type="checkbox"
+                checked={settings.reduceMotion}
+                onChange={(event) => patchSettings({ reduceMotion: event.target.checked })}
+              />
+              Reduce motion
+            </label>
+            <label className="setting-item">
+              <input
+                type="checkbox"
+                checked={settings.subtitlesEnabled}
+                onChange={(event) => patchSettings({ subtitlesEnabled: event.target.checked })}
+              />
+              Subtitles on by default
+            </label>
+            <label className="setting-item">
+              <input
+                type="checkbox"
+                checked={settings.keepScreenAwake}
+                onChange={(event) => patchSettings({ keepScreenAwake: event.target.checked })}
+              />
+              Keep screen awake
+            </label>
+            <label className="setting-item">
+              <input
+                type="checkbox"
+                checked={settings.profanityFilter}
+                onChange={(event) => patchSettings({ profanityFilter: event.target.checked })}
+              />
+              Profanity filter
+            </label>
+            <label className="setting-item">
+              <input
+                type="checkbox"
+                checked={settings.soundsEnabled}
+                onChange={(event) => patchSettings({ soundsEnabled: event.target.checked })}
+              />
+              UI sound feedback
+            </label>
+          </section>
+
+          <section className="panel">
+            <h3>Progress & backup</h3>
+            <p className="subtle">
+              Auto checkpoint: <strong>{formatStamp(lastCheckpointAt)}</strong>
+            </p>
+            <div className="button-row compact-row">
+              <button type="button" onClick={() => saveProgressSnapshot("manual")}>
+                Save checkpoint
+              </button>
+              <button type="button" onClick={restoreLastCheckpoint}>
+                Restore
+              </button>
+              <button type="button" onClick={exportBackup}>
+                Export
+              </button>
+              <button type="button" onClick={openImportBackupPicker}>
+                Import
+              </button>
+            </div>
+            <input
+              ref={importBackupRef}
+              type="file"
+              accept=".json,application/json"
+              onChange={importBackupFromFile}
+              hidden
+            />
+          </section>
+
+          <section className="panel">
+            <h3>Movie emoticon pack</h3>
+            <p className="subtle">Built-in movie pack + your uploaded custom image emoticons.</p>
+            <div className="button-row compact-row">
+              <button type="button" onClick={openEmoticonUploadPicker}>
+                Upload images
+              </button>
+              <button type="button" onClick={clearCustomEmoticons} disabled={!hasUploadedEmoticons}>
+                Clear uploaded pack
+              </button>
+            </div>
+            <input
+              ref={emoticonUploadRef}
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={importCustomEmoticonFiles}
+              hidden
+            />
+            <div className="emoji-strip custom-strip">
+              {customEmoticons.slice(0, 10).map((emoticon) => (
+                <span key={`settings-page-${emoticon.id}`} className="emoji-chip custom preview-only">
+                  <img src={emoticon.src} alt={emoticon.label} />
+                </span>
+              ))}
+            </div>
+          </section>
+
+          <section className="panel legal">
+            <h3>Legal links</h3>
+            <p>
+              <a href="/legal/privacy.html" target="_blank" rel="noreferrer">
+                Privacy
+              </a>
+              <a href="/legal/terms.html" target="_blank" rel="noreferrer">
+                Terms
+              </a>
+              <a href="/legal/copyright.html" target="_blank" rel="noreferrer">
+                Copyright policy
+              </a>
+            </p>
+          </section>
+        </section>
+      </main>
+    );
+  }
+
   const RoomComposer = (
     <section className="panel room-composer compact-room-composer">
       <div className="panel-head">
@@ -3076,6 +3364,14 @@ function App() {
               <span className="chip">Service: {selectedService.name}</span>
               <span className="chip">{backendLabel}</span>
             </div>
+            <div className="header-actions compact-row">
+              <button type="button" onClick={openSettingsPage}>
+                Settings page
+              </button>
+              <button type="button" onClick={openAccountPage}>
+                Account page
+              </button>
+            </div>
           </header>
           <section className="sticky-video lobby-preview lobby-media-lock">
             <h2>Top preview player</h2>
@@ -3136,9 +3432,12 @@ function App() {
             {roomState.slowModeSec > 0 && <span className="chip">Slow mode {roomState.slowModeSec}s</span>}
           </div>
           {roomState.announcement && <p className="announcement-banner">📣 {roomState.announcement}</p>}
-          <div className="header-actions">
-            <button type="button" onClick={() => setSettingsOpen(true)}>
-              Settings
+          <div className="header-actions compact-row">
+            <button type="button" onClick={openSettingsPage}>
+              Settings page
+            </button>
+            <button type="button" onClick={openAccountPage}>
+              Account page
             </button>
             <button type="button" onClick={switchProfile}>
               Switch profile
@@ -3186,6 +3485,13 @@ function App() {
               </button>
             </div>
           )}
+        </section>
+
+        <section className="panel room-host-controls">
+          <div className="panel-head">
+            <h2>Host controls</h2>
+            <span className="chip">{isHost ? "Host authority active" : "Viewer tools"}</span>
+          </div>
           <div className="player-utility-row">
             <button type="button" onClick={toggleCaptions} disabled={!useNativeVideoPlayer}>
               {captionsOn ? "Subtitles ON" : "Subtitles OFF"}
@@ -3202,7 +3508,14 @@ function App() {
             <button type="button" onClick={() => setVoiceTipsOpen((current) => !current)}>
               Voice tips
             </button>
+            <button type="button" onClick={copyCurrentRoomUrl}>
+              Copy URL
+            </button>
           </div>
+          <label className="url-inline">
+            Stream URL
+            <input value={roomState.mediaUrl} readOnly />
+          </label>
           {voiceTipsOpen && (
             <p className="voice-tip">
               Use headphones and push-to-talk for cleaner voice. Fast production-ready options: LiveKit,
@@ -3214,7 +3527,7 @@ function App() {
               {effectiveService.name} plays via official account flow. Preview is synced companion video.
             </p>
           )}
-          <div className="button-row">
+          <div className="button-row compact-row">
             <button type="button" onClick={togglePlayback} disabled={!isHost}>
               {roomState.playing ? "Pause (host)" : "Play (host)"}
             </button>
@@ -3234,6 +3547,32 @@ function App() {
               Re-auth
             </button>
           </div>
+          {isHost && (
+            <>
+              <div className="button-row compact-row">
+                <button type="button" onClick={togglePrivateLobby}>
+                  {roomState.privateLobby ? "Disable private mode" : "Enable private mode"}
+                </button>
+                <button type="button" onClick={toggleLobbyLock}>
+                  {roomState.locked ? "Unlock lobby" : "Lock lobby"}
+                </button>
+                <button type="button" onClick={toggleChatLock}>
+                  {roomState.chatLocked ? "Unlock chat" : "Lock chat"}
+                </button>
+              </div>
+              <div className="slow-mode-row">
+                <button type="button" onClick={() => setSlowMode(0)}>
+                  Slow off
+                </button>
+                <button type="button" onClick={() => setSlowMode(5)}>
+                  Slow 5s
+                </button>
+                <button type="button" onClick={() => setSlowMode(10)}>
+                  Slow 10s
+                </button>
+              </div>
+            </>
+          )}
         </section>
 
         <section className="tab-stage room-tab-stage">
