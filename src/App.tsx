@@ -59,6 +59,7 @@ type StreamingService = {
   id: string;
   name: string;
   tag: string;
+  iconUrl?: string;
   accent: string;
   accentRgb: string;
   domains: string[];
@@ -168,6 +169,7 @@ const serviceCatalog: StreamingService[] = [
     id: "netflix",
     name: "Netflix",
     tag: "N",
+    iconUrl: "https://cdn.simpleicons.org/netflix/E50914",
     accent: "#e50914",
     accentRgb: "229,9,20",
     domains: ["www.netflix.com", "netflix.com"],
@@ -180,6 +182,7 @@ const serviceCatalog: StreamingService[] = [
     id: "hulu",
     name: "Hulu",
     tag: "H",
+    iconUrl: "https://cdn.simpleicons.org/hulu/1CE783",
     accent: "#1ce783",
     accentRgb: "28,231,131",
     domains: ["www.hulu.com", "hulu.com"],
@@ -192,6 +195,7 @@ const serviceCatalog: StreamingService[] = [
     id: "disney",
     name: "Disney+",
     tag: "D+",
+    iconUrl: "https://cdn.simpleicons.org/disneyplus/113CCF",
     accent: "#113ccf",
     accentRgb: "17,60,207",
     domains: ["www.disneyplus.com", "disneyplus.com"],
@@ -204,6 +208,7 @@ const serviceCatalog: StreamingService[] = [
     id: "max",
     name: "Max",
     tag: "M",
+    iconUrl: "https://cdn.simpleicons.org/hbomax/5E3BFF",
     accent: "#5e3bff",
     accentRgb: "94,59,255",
     domains: ["play.max.com", "www.max.com", "max.com"],
@@ -216,6 +221,7 @@ const serviceCatalog: StreamingService[] = [
     id: "prime",
     name: "Prime Video",
     tag: "P",
+    iconUrl: "https://cdn.simpleicons.org/amazonprimevideo/00A8E1",
     accent: "#00a8e1",
     accentRgb: "0,168,225",
     domains: ["www.primevideo.com", "primevideo.com"],
@@ -228,6 +234,7 @@ const serviceCatalog: StreamingService[] = [
     id: "paramount",
     name: "Paramount+",
     tag: "P+",
+    iconUrl: "https://cdn.simpleicons.org/paramountplus/0078FF",
     accent: "#0078ff",
     accentRgb: "0,120,255",
     domains: ["www.paramountplus.com", "paramountplus.com"],
@@ -240,6 +247,7 @@ const serviceCatalog: StreamingService[] = [
     id: "peacock",
     name: "Peacock",
     tag: "PK",
+    iconUrl: "https://cdn.simpleicons.org/peacock/FFD400",
     accent: "#ffd400",
     accentRgb: "255,212,0",
     domains: ["www.peacocktv.com", "peacocktv.com"],
@@ -252,6 +260,7 @@ const serviceCatalog: StreamingService[] = [
     id: "crunchyroll",
     name: "Crunchyroll",
     tag: "CR",
+    iconUrl: "https://cdn.simpleicons.org/crunchyroll/F47521",
     accent: "#f47521",
     accentRgb: "244,117,33",
     domains: ["www.crunchyroll.com", "crunchyroll.com"],
@@ -264,6 +273,7 @@ const serviceCatalog: StreamingService[] = [
     id: "youtube",
     name: "YouTube",
     tag: "YT",
+    iconUrl: "https://cdn.simpleicons.org/youtube/FF0033",
     accent: "#ff0033",
     accentRgb: "255,0,51",
     domains: ["www.youtube.com", "youtube.com", "m.youtube.com", "music.youtube.com", "youtu.be"],
@@ -276,6 +286,7 @@ const serviceCatalog: StreamingService[] = [
     id: "twitch",
     name: "Twitch",
     tag: "TW",
+    iconUrl: "https://cdn.simpleicons.org/twitch/9146FF",
     accent: "#9146ff",
     accentRgb: "145,70,255",
     domains: ["www.twitch.tv", "twitch.tv"],
@@ -288,6 +299,7 @@ const serviceCatalog: StreamingService[] = [
     id: "appletv",
     name: "Apple TV+",
     tag: "TV+",
+    iconUrl: "https://cdn.simpleicons.org/appletv/B6B6B6",
     accent: "#b6b6b6",
     accentRgb: "182,182,182",
     domains: ["tv.apple.com", "www.apple.com"],
@@ -300,6 +312,7 @@ const serviceCatalog: StreamingService[] = [
     id: "tubi",
     name: "Tubi",
     tag: "TB",
+    iconUrl: "https://cdn.simpleicons.org/tubi/FF5F26",
     accent: "#ff5f26",
     accentRgb: "255,95,38",
     domains: ["tubitv.com", "www.tubitv.com"],
@@ -690,10 +703,9 @@ function App() {
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [roomToolsOpen, setRoomToolsOpen] = useState(false);
-  const [roomSettingsOpen, setRoomSettingsOpen] = useState(false);
-  const [roomCommsOpen, setRoomCommsOpen] = useState(false);
-  const [roomQuickOpen, setRoomQuickOpen] = useState(false);
+  const [roomPanelsOpen, setRoomPanelsOpen] = useState(false);
   const [lobbyToolsOpen, setLobbyToolsOpen] = useState(false);
+  const [authPanelsOpen, setAuthPanelsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<TabKey>("chat");
   const [achievement, setAchievement] = useState<{ title: string; body: string } | null>(null);
   const [notice, setNotice] = useState("");
@@ -723,6 +735,7 @@ function App() {
   const emoticonUploadRef = useRef<HTMLInputElement | null>(null);
   const pendingBrowserActionRef = useRef<{ serviceId: string; mode: "signin" | "catalog" } | null>(null);
   const browserLaunchAtRef = useRef(0);
+  const authAutoProceedRef = useRef<string | null>(null);
   const swipeTouchRef = useRef<{ x: number; y: number; at: number } | null>(null);
   const transitionTimeoutRef = useRef<number | null>(null);
   const previousPathRef = useRef<string>("");
@@ -2510,10 +2523,15 @@ function App() {
   useEffect(() => {
     if (currentPath !== "/auth") return;
     if (session || !selectedServiceId || !serviceConnected) return;
-    const recent = recentProfiles[0];
-    if (!recent) return;
-    const who = autoContinueToLobby(recent);
-    flashNotice(`Auto-continued with ${who}.`);
+    if (authAutoProceedRef.current === selectedServiceId) return;
+    authAutoProceedRef.current = selectedServiceId;
+    const timer = window.setTimeout(() => {
+      const recent = recentProfiles[0];
+      const autoName = recent || `Guest${Math.floor(Math.random() * 900 + 100)}`;
+      const who = autoContinueToLobby(autoName);
+      flashNotice(`Auto-continued with ${who}.`);
+    }, 180);
+    return () => window.clearTimeout(timer);
   }, [autoContinueToLobby, currentPath, flashNotice, recentProfiles, selectedServiceId, serviceConnected, session]);
 
   useEffect(() => {
@@ -2543,9 +2561,11 @@ function App() {
   useEffect(() => {
     setLobbyToolsOpen(false);
     setRoomToolsOpen(false);
-    setRoomSettingsOpen(false);
-    setRoomCommsOpen(false);
-    setRoomQuickOpen(false);
+    setRoomPanelsOpen(false);
+    setAuthPanelsOpen(false);
+    if (currentPath !== "/auth") {
+      authAutoProceedRef.current = null;
+    }
   }, [currentPath]);
 
   useEffect(() => {
@@ -2826,7 +2846,17 @@ function App() {
                     style={{ background: service.id === "direct" ? "rgba(49,46,129,0.95)" : service.accent }}
                     onClick={() => setHomeServiceId(service.id)}
                   >
-                    {service.id === "direct" ? "Licensed\nDirect URL" : service.tag}
+                    {service.id === "direct" ? (
+                      <span className="service-home-direct-label">Licensed Direct URL</span>
+                    ) : (
+                      <span className="service-home-icon-wrap">
+                        {service.iconUrl ? (
+                          <img src={service.iconUrl} alt={`${service.name} icon`} className="service-home-icon" loading="lazy" />
+                        ) : (
+                          <span>{service.tag}</span>
+                        )}
+                      </span>
+                    )}
                   </button>
                 ))}
               </div>
@@ -2897,10 +2927,10 @@ function App() {
           <p className="subtle">
             Selected: <strong>{selectedService.name}</strong>. Secure in-app authentication starts below.
           </p>
-          <section className="auth-fast-lane">
-            <h3>Fast lane</h3>
+          <section className="auth-fast-lane auth-minimal-lane">
+            <h3>One-tap auth</h3>
             <p className="subtle">
-              One tap opens official {selectedService.name} auth, then returns here and continues automatically.
+              Open official {selectedService.name}, sign in, return. KinoPulse continues to lobby automatically.
             </p>
             <div className="button-row">
               <button
@@ -2910,90 +2940,105 @@ function App() {
               >
                 {serviceConnected ? `Continue as ${recommendedAuthProfile}` : `One-tap ${selectedService.name} sign-in`}
               </button>
-              <button type="button" onClick={openServiceCatalog}>
-                Open {selectedService.name} app/home
-              </button>
+            </div>
+            <div className="auth-minimal-chip-row">
+              <span className={`chip ${serviceConnected ? "chip-safe" : ""}`}>
+                {serviceConnected ? "Connected" : "Awaiting sign-in"}
+              </span>
+              <span className="chip">Auto-lobby on return</span>
             </div>
             {authInfo && <p className="ok">{authInfo}</p>}
             {selectedService.id === "youtube" && (
               <p className="note">
-                YouTube fast path: sign in, open/copy video link, return — lobby auto-fills and launches quicker.
+                YouTube fast path: sign in, open video, return — lobby keeps player large and ready.
               </p>
             )}
           </section>
 
-          <details className="auth-browser-card auth-advanced">
-            <summary>Advanced options / fallback</summary>
-            <div className="auth-browser-head">
-              <h3>{selectedService.name} secure sign-in</h3>
-              <span className={`chip ${serviceConnected ? "chip-safe" : ""}`}>
-                {serviceConnected ? "Connected" : "Pending"}
-              </span>
-            </div>
-            <p className="subtle">
-              We open the official provider page in a secure browser tab. KinoPulse never captures your
-              credentials.
-            </p>
-            <ol className="auth-steps">
-              <li>Open official sign-in tab.</li>
-              <li>Authenticate directly with {selectedService.name}.</li>
-              <li>Return to KinoPulse — we auto-continue to lobby.</li>
-            </ol>
-            <div className="button-row">
-              <button type="button" className="browser-cta" onClick={startServiceSignIn}>
-                One-tap secure sign-in
-              </button>
-              <button
-                type="button"
-                onClick={confirmServiceSignIn}
-                disabled={!authGuided && !serviceConnected}
-              >
-                Fallback: I completed sign-in
-              </button>
-              <button type="button" onClick={openServiceCatalog}>
-                Open {selectedService.name} home
-              </button>
-            </div>
-            <p className="note">
-              Policy-safe pattern: official provider auth in system/custom tab, no embedded credential
-              interception.
-            </p>
-          </details>
-          {recentProfiles.length > 0 && (
-            <div className="quick-profiles">
-              {recentProfiles.map((profile) => (
-                <button key={profile} type="button" className="profile-pill" onClick={() => loginRecentProfile(profile)}>
-                  {profile}
-                </button>
-              ))}
-            </div>
+          {authPanelsOpen && (
+            <>
+              <section className="auth-browser-card auth-advanced">
+                <div className="auth-browser-head">
+                  <h3>{selectedService.name} secure sign-in</h3>
+                  <span className={`chip ${serviceConnected ? "chip-safe" : ""}`}>
+                    {serviceConnected ? "Connected" : "Pending"}
+                  </span>
+                </div>
+                <p className="subtle">
+                  We open the official provider page in a secure browser tab. KinoPulse never captures your
+                  credentials.
+                </p>
+                <ol className="auth-steps">
+                  <li>Open official sign-in tab.</li>
+                  <li>Authenticate directly with {selectedService.name}.</li>
+                  <li>Return to KinoPulse — auto-continue runs.</li>
+                </ol>
+                <div className="button-row">
+                  <button type="button" className="browser-cta" onClick={startServiceSignIn}>
+                    Re-open secure sign-in
+                  </button>
+                  <button
+                    type="button"
+                    onClick={confirmServiceSignIn}
+                    disabled={!authGuided && !serviceConnected}
+                  >
+                    Fallback: I completed sign-in
+                  </button>
+                  <button type="button" onClick={openServiceCatalog}>
+                    Open {selectedService.name} app/home
+                  </button>
+                </div>
+              </section>
+              {recentProfiles.length > 0 && (
+                <div className="quick-profiles">
+                  {recentProfiles.map((profile) => (
+                    <button
+                      key={profile}
+                      type="button"
+                      className="profile-pill"
+                      onClick={() => loginRecentProfile(profile)}
+                    >
+                      {profile}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <section className="auth-manual-profile">
+                <form className="report" onSubmit={handleAuthSubmit}>
+                  <label>
+                    Display name
+                    <input
+                      value={authName}
+                      onChange={(event) => setAuthName(event.target.value)}
+                      placeholder="Leave blank for auto guest"
+                    />
+                  </label>
+                  {authError && <p className="warn">{authError}</p>}
+                  <div className="button-row">
+                    <button type="submit" disabled={!serviceConnected}>
+                      Continue
+                    </button>
+                    <button type="button" onClick={useQuickGuest} disabled={!serviceConnected}>
+                      Quick guest
+                    </button>
+                    <button type="button" onClick={resetServiceSelection}>
+                      Change service
+                    </button>
+                  </div>
+                </form>
+              </section>
+            </>
           )}
-          <details className="auth-manual-profile">
-            <summary>Manual profile controls</summary>
-            <form className="report" onSubmit={handleAuthSubmit}>
-              <label>
-                Display name
-                <input
-                  value={authName}
-                  onChange={(event) => setAuthName(event.target.value)}
-                  placeholder="Leave blank for auto guest"
-                />
-              </label>
-              {authError && <p className="warn">{authError}</p>}
-              <div className="button-row">
-                <button type="submit" disabled={!serviceConnected}>
-                  Continue
-                </button>
-                <button type="button" onClick={useQuickGuest} disabled={!serviceConnected}>
-                  Quick guest
-                </button>
-                <button type="button" onClick={resetServiceSelection}>
-                  Change service
-                </button>
-              </div>
-            </form>
-          </details>
         </section>
+        <div className="floating-dock floating-dock-auth">
+          <button
+            type="button"
+            className={authPanelsOpen ? "active" : ""}
+            onClick={() => setAuthPanelsOpen((open) => !open)}
+          >
+            {authPanelsOpen ? "Hide options" : "More options"}
+          </button>
+        </div>
       </main>
     );
   }
@@ -3844,6 +3889,27 @@ function App() {
           )}
         </section>
 
+        <section className="panel room-core-actions">
+          <div className="panel-head">
+            <h2>Quick actions</h2>
+            <p className="subtle">Voice, webcam, and display controls</p>
+          </div>
+          <div className="button-row compact-row">
+            <button type="button" onClick={openVoiceRoom}>
+              Voice chat
+            </button>
+            <button type="button" onClick={activateWebcamBridge}>
+              Webcam
+            </button>
+            <button type="button" onClick={toggleFullscreen}>
+              {isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+            </button>
+            <button type="button" onClick={() => setRoomPanelsOpen((open) => !open)}>
+              {roomPanelsOpen ? "Hide panels" : "Show panels"}
+            </button>
+          </div>
+        </section>
+
         <section className={`panel room-host-controls ${roomToolsOpen ? "advanced-open" : "advanced-hidden"}`}>
           <div className="panel-head">
             <h2>Host controls</h2>
@@ -4269,45 +4335,42 @@ function App() {
       <div className="floating-dock floating-dock-room">
         <button
           type="button"
-          className={roomToolsOpen ? "active" : ""}
-          onClick={() => {
-            setRoomToolsOpen((open) => {
-              const next = !open;
-              if (next) setActiveTab("chat");
-              return next;
-            });
-          }}
+          className={roomPanelsOpen ? "active" : ""}
+          onClick={() => setRoomPanelsOpen((open) => !open)}
         >
-          {roomToolsOpen ? "Hide tools" : "Tools"}
-        </button>
-        <button
-          type="button"
-          className={roomCommsOpen ? "active" : ""}
-          onClick={() => setRoomCommsOpen((open) => !open)}
-        >
-          Center
-        </button>
-        <button
-          type="button"
-          className={roomQuickOpen ? "active" : ""}
-          onClick={() => setRoomQuickOpen((open) => !open)}
-        >
-          Quick
-        </button>
-        <button
-          type="button"
-          className={roomSettingsOpen ? "active" : ""}
-          onClick={() => setRoomSettingsOpen((open) => !open)}
-        >
-          Settings
+          {roomPanelsOpen ? "Hide controls" : "Controls"}
         </button>
       </div>
-      {roomCommsOpen && (
-        <aside className="floating-panel comms-panel" role="dialog" aria-label="Communication center">
+      {roomPanelsOpen && (
+        <aside className="floating-panel room-unified-panel" role="dialog" aria-label="Room controls">
           <div className="floating-panel-head">
-            <h3>Communication center</h3>
-            <button type="button" onClick={() => setRoomCommsOpen(false)}>
+            <h3>Control center</h3>
+            <button type="button" onClick={() => setRoomPanelsOpen(false)}>
               Close
+            </button>
+          </div>
+          <div className="button-row compact-row">
+            <button
+              type="button"
+              className={roomToolsOpen ? "active" : ""}
+              onClick={() => {
+                setRoomToolsOpen((open) => {
+                  const next = !open;
+                  if (next) setActiveTab("chat");
+                  return next;
+                });
+              }}
+            >
+              {roomToolsOpen ? "Hide advanced tabs" : "Show advanced tabs"}
+            </button>
+            <button type="button" onClick={startServiceSignIn}>
+              Re-auth service
+            </button>
+            <button type="button" onClick={openOfficialMedia}>
+              Open licensed URL
+            </button>
+            <button type="button" onClick={copyCurrentRoomUrl}>
+              Copy room URL
             </button>
           </div>
           <div className="button-row compact-row">
@@ -4317,46 +4380,33 @@ function App() {
             <button type="button" onClick={openVoiceRoom}>
               Start audio call
             </button>
+            <button type="button" onClick={togglePictureInPicture}>
+              {effectiveService.externalOnly ? "Open official PiP" : "Picture-in-picture"}
+            </button>
+            <button type="button" onClick={sendAiEmoticon} disabled={chatActionsDisabled}>
+              AI mood
+            </button>
           </div>
           <div className="comms-stats">
             <span>Playback: {roomState.playing ? "Playing" : "Paused"}</span>
             <span>Playhead: {formatTime(videoRef.current?.currentTime ?? roomState.playhead)}</span>
             <span>Latency: 98ms</span>
           </div>
-        </aside>
-      )}
-      {roomQuickOpen && (
-        <aside className="floating-rail" role="dialog" aria-label="Quick actions">
-          <button type="button" onClick={startServiceSignIn}>
-            Re-auth
-          </button>
-          <button type="button" onClick={openOfficialMedia}>
-            Open licensed URL
-          </button>
-          <button type="button" onClick={sendAiEmoticon} disabled={chatActionsDisabled}>
-            AI mood
-          </button>
-          {customEmoticons.slice(0, 3).map((emoticon) => (
-            <button
-              key={`rail-${emoticon.id}`}
-              type="button"
-              className="emoji-chip custom"
-              onClick={() => sendCustomEmoticon(emoticon)}
-              disabled={chatActionsDisabled}
-            >
-              <img src={emoticon.src} alt={emoticon.label} />
-            </button>
-          ))}
-        </aside>
-      )}
-      {roomSettingsOpen && (
-        <aside className="floating-panel room-settings-panel" role="dialog" aria-label="Quick room settings">
-          <div className="floating-panel-head">
-            <h3>Quick settings</h3>
-            <button type="button" onClick={() => setRoomSettingsOpen(false)}>
-              Close
-            </button>
-          </div>
+          {customEmoticons.length > 0 && (
+            <div className="floating-emoticons-row">
+              {customEmoticons.slice(0, 4).map((emoticon) => (
+                <button
+                  key={`floating-custom-${emoticon.id}`}
+                  type="button"
+                  className="emoji-chip custom"
+                  onClick={() => sendCustomEmoticon(emoticon)}
+                  disabled={chatActionsDisabled}
+                >
+                  <img src={emoticon.src} alt={emoticon.label} />
+                </button>
+              ))}
+            </div>
+          )}
           <div className="setting-grid">
             <label className="setting-item">
               <input
@@ -4390,10 +4440,16 @@ function App() {
             <button type="button" onClick={openAccountPage}>
               Account
             </button>
-            <button type="button" onClick={copyCurrentRoomUrl}>
-              Copy URL
+            <button type="button" onClick={() => setVoiceTipsOpen((current) => !current)}>
+              {voiceTipsOpen ? "Hide voice tips" : "Voice tips"}
             </button>
           </div>
+          {voiceTipsOpen && (
+            <p className="voice-tip">
+              Use headphones and push-to-talk for cleaner voice. Fast production-ready options: LiveKit,
+              Daily, Agora, or Jitsi rooms.
+            </p>
+          )}
         </aside>
       )}
       {SettingsSheet}
