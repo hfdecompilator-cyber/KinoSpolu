@@ -2,7 +2,7 @@
   font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
   line-height: 1.5;
   color: #f8fafc;
-  background: radial-gradient(circle at 15% 20%, #1d4ed8 0%, #0f172a 42%, #020617 100%);
+  background: radial-gradient(circle at 12% 20%, #2563eb 0%, #0b1633 40%, #020617 100%);
 }
 
 * {
@@ -18,21 +18,21 @@ body {
   min-height: 100vh;
   display: grid;
   place-items: center;
-  padding: 28px;
+  padding: 24px;
   position: relative;
   overflow: hidden;
 }
 
 .card {
-  width: min(980px, 100%);
-  padding: 26px;
-  border-radius: 24px;
+  width: min(1100px, 100%);
+  padding: 24px;
+  border-radius: 22px;
   background: linear-gradient(160deg, rgba(15, 23, 42, 0.9), rgba(17, 24, 39, 0.84));
   border: 1px solid rgba(148, 163, 184, 0.25);
   box-shadow: 0 24px 50px rgba(2, 6, 23, 0.55);
   backdrop-filter: blur(6px);
   display: grid;
-  gap: 18px;
+  gap: 16px;
   position: relative;
   z-index: 2;
 }
@@ -66,7 +66,7 @@ h3 {
 
 .hero {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .eyebrow {
@@ -102,7 +102,7 @@ h3 {
 
 .layout {
   display: grid;
-  gap: 14px;
+  gap: 12px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
@@ -112,6 +112,10 @@ h3 {
   }
 }
 
+.layout-top .panel {
+  min-height: 305px;
+}
+
 .panel {
   border: 1px solid rgba(100, 116, 139, 0.4);
   border-radius: 16px;
@@ -119,6 +123,34 @@ h3 {
   display: grid;
   gap: 12px;
   background: linear-gradient(170deg, rgba(15, 23, 42, 0.85), rgba(10, 15, 28, 0.8));
+}
+
+.sync-metrics {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.metric-label {
+  color: #94a3b8;
+  font-size: 0.8rem;
+}
+
+.metric-value {
+  color: #e2e8f0;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.button-row button {
+  flex: 1;
+  min-width: 104px;
 }
 
 label {
@@ -186,6 +218,57 @@ button:disabled {
   gap: 10px;
 }
 
+.participants {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pill {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.8rem;
+  background: rgba(30, 41, 59, 0.6);
+}
+
+.chat-log {
+  display: grid;
+  gap: 6px;
+  background: rgba(3, 8, 20, 0.52);
+  border: 1px solid rgba(71, 85, 105, 0.55);
+  border-radius: 10px;
+  padding: 10px;
+  max-height: 150px;
+  overflow: auto;
+}
+
+.chat-log p {
+  margin: 0;
+  color: #dbeafe;
+  font-size: 0.9rem;
+}
+
+.inline-form {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+
+.inline-form button {
+  white-space: nowrap;
+}
+
+.reactions {
+  display: flex;
+  gap: 8px;
+}
+
+.reactions button {
+  padding: 7px 10px;
+  font-size: 0.9rem;
+}
+
 .legal p {
   display: flex;
   flex-wrap: wrap;
@@ -201,6 +284,11 @@ a {
 .note {
   color: #94a3b8;
   font-size: 0.9rem;
+}
+
+.subtle {
+  color: #a5b4fc;
+  font-size: 0.86rem;
 }
 
 .ambient {
