@@ -348,6 +348,51 @@ const emojiPacks = [
   "🚀"
 ];
 const aiStyleEmoticons = ["(づ｡◕‿‿◕｡)づ", "ʕ•ᴥ•ʔ", "(ง •̀_•́)ง", "ヾ(•ω•`)o", "╰(*°▽°*)╯"];
+const movieEmoticonSeeds = [
+  { id: "movie-popcorn", label: "Popcorn", symbol: "🍿", bg: "#a02a2a", glow: "#f6c26f" },
+  { id: "movie-ticket", label: "Shocked ticket", symbol: "🎫", bg: "#2c3d66", glow: "#8fc5ff" },
+  { id: "movie-crying-reel", label: "Crying reel", symbol: "🎞️", bg: "#213047", glow: "#8ed8ff" },
+  { id: "movie-action-clapper", label: "Action clapper", symbol: "🎬", bg: "#1f2937", glow: "#9ca3af" },
+  { id: "movie-heart-camera", label: "Heart camera", symbol: "📹", bg: "#3a1b4d", glow: "#fda4af" },
+  { id: "movie-rolling-video", label: "Rolling video", symbol: "📽️", bg: "#163659", glow: "#93c5fd" },
+  { id: "movie-wow-glasses", label: "3D wow", symbol: "🤯", bg: "#1e3a8a", glow: "#60a5fa" },
+  { id: "movie-popcorn-pop", label: "Popcorn pop", symbol: "💥", bg: "#7c2d12", glow: "#fdba74" },
+  { id: "movie-recliner", label: "Recliner", symbol: "🛋️", bg: "#4c1d95", glow: "#c4b5fd" },
+  { id: "movie-the-end", label: "The end", symbol: "🎞", bg: "#312e81", glow: "#c7d2fe" },
+  { id: "movie-lens", label: "Watching lens", symbol: "📷", bg: "#0f766e", glow: "#99f6e4" },
+  { id: "movie-scared-popcorn", label: "Scared popcorn", symbol: "😱", bg: "#7f1d1d", glow: "#fca5a5" }
+] as const;
+
+const movieEmoticonDataUri = (symbol: string, label: string, bg: string, glow: string) =>
+  `data:image/svg+xml;utf8,${encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96">
+      <defs>
+        <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="${bg}" />
+          <stop offset="100%" stop-color="#0b1320" />
+        </linearGradient>
+      </defs>
+      <rect x="4" y="4" width="88" height="88" rx="20" fill="url(#g)" stroke="${glow}" stroke-width="2"/>
+      <circle cx="48" cy="26" r="11" fill="${glow}" opacity="0.2" />
+      <text x="48" y="58" text-anchor="middle" dominant-baseline="middle" font-size="36">${symbol}</text>
+      <text x="48" y="82" text-anchor="middle" font-size="10" fill="${glow}" font-family="Inter,Arial,sans-serif">${label}</text>
+    </svg>`
+  )}`;
+
+const builtInMovieEmoticons: CustomEmoticon[] = movieEmoticonSeeds.map((entry) => ({
+  id: entry.id,
+  label: entry.label,
+  src: movieEmoticonDataUri(entry.symbol, entry.label, entry.bg, entry.glow)
+}));
+
+const mergeWithMoviePack = (entries: CustomEmoticon[]) => {
+  const safeCustom = entries
+    .filter((entry) => entry && typeof entry.id === "string" && typeof entry.label === "string")
+    .filter((entry) => typeof entry.src === "string" && entry.src.startsWith("data:image/"))
+    .filter((entry) => !entry.id.startsWith("movie-"))
+    .slice(0, 12);
+  return [...builtInMovieEmoticons, ...safeCustom].slice(0, 18);
+};
 
 const defaultSettings: UserSettings = {
   compactChat: false,
@@ -488,6 +533,19 @@ const toYouTubeEmbedUrl = (value: string) => {
   }
 };
 
+const isLikelyDirectPlayableUrl = (value: string) => {
+  const candidate = value.trim();
+  if (!candidate) return false;
+  try {
+    const parsed = new URL(candidate);
+    const host = parsed.hostname.toLowerCase();
+    if (host.includes("commondatastorage.googleapis.com")) return true;
+    return /\.(mp4|webm|m3u8|mov|ogg)(\?.*)?$/i.test(parsed.pathname);
+  } catch {
+    return false;
+  }
+};
+
 const sanitizeProfanity = (value: string) =>
   value
     .replace(/\b(fuck|shit|bitch|asshole)\b/gi, "***")
@@ -603,7 +661,7 @@ function App() {
   const [reportDetails, setReportDetails] = useState("");
   const [reportSubmitted, setReportSubmitted] = useState(false);
   const [customEmoticons, setCustomEmoticons] = useState<CustomEmoticon[]>(() =>
-    readJson<CustomEmoticon[]>(CUSTOM_EMOTICONS_KEY, [])
+    mergeWithMoviePack(readJson<CustomEmoticon[]>(CUSTOM_EMOTICONS_KEY, []))
   );
 
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -644,6 +702,10 @@ function App() {
   const themeClass = `theme-${selectedService.id}`;
   const serviceConnected = selectedService.id === "direct" || !!serviceAuth[selectedService.id];
   const currentPath = location.pathname || "/";
+  const hasUploadedEmoticons = useMemo(
+    () => customEmoticons.some((entry) => !entry.id.startsWith("movie-")),
+    [customEmoticons]
+  );
 
   const username = session?.username ?? "";
   const normalizedRoomCode = roomCode.trim().toUpperCase();
@@ -670,11 +732,6 @@ function App() {
     if (roomState.playing) return "Healthy • ±120ms drift";
     return "Paused • locked";
   }, [roomState]);
-
-  const engagementScore = useMemo(
-    () => fireReactions + heartReactions + wowReactions + chatMessages.length * 2,
-    [fireReactions, heartReactions, wowReactions, chatMessages.length]
-  );
 
   const effectiveService = useMemo(
     () => getServiceById(roomState?.serviceId || selectedService.id),
@@ -883,11 +940,9 @@ function App() {
       setHeartReactions(Math.max(0, incoming.heartReactions || 0));
       setWowReactions(Math.max(0, incoming.wowReactions || 0));
       setBlockedUsers(Array.isArray(incoming.blockedUsers) ? incoming.blockedUsers : []);
-      const safeCustomEmoticons = Array.isArray(incoming.customEmoticons)
-        ? incoming.customEmoticons
-            .filter((entry) => entry && typeof entry.src === "string" && typeof entry.label === "string")
-            .slice(0, 12)
-        : [];
+      const safeCustomEmoticons = mergeWithMoviePack(
+        Array.isArray(incoming.customEmoticons) ? incoming.customEmoticons : []
+      );
       setCustomEmoticons(safeCustomEmoticons);
       writeJson(CUSTOM_EMOTICONS_KEY, safeCustomEmoticons);
       setModerationLog(
@@ -1005,7 +1060,8 @@ function App() {
           return;
         }
         setCustomEmoticons((current) => {
-          const merged = [...safe, ...current].slice(0, 12);
+          const customOnlyCurrent = current.filter((entry) => !entry.id.startsWith("movie-"));
+          const merged = mergeWithMoviePack([...safe, ...customOnlyCurrent]);
           writeJson(CUSTOM_EMOTICONS_KEY, merged);
           return merged;
         });
@@ -1020,9 +1076,9 @@ function App() {
   );
 
   const clearCustomEmoticons = useCallback(() => {
-    setCustomEmoticons([]);
-    writeJson(CUSTOM_EMOTICONS_KEY, []);
-    flashNotice("Custom emoticons cleared.");
+    setCustomEmoticons(builtInMovieEmoticons);
+    writeJson(CUSTOM_EMOTICONS_KEY, builtInMovieEmoticons);
+    flashNotice("Uploaded emoticons cleared. Movie pack kept.");
   }, [flashNotice]);
 
   const pushLog = useCallback((event: string) => {
@@ -1186,6 +1242,11 @@ function App() {
 
   const chooseService = useCallback((serviceId: string) => {
     persistServiceChoice(serviceId);
+    if (serviceId === "direct") {
+      setWatchUrl((current) => (isLikelyDirectPlayableUrl(current) ? current : SAMPLE_VIDEO));
+      setMediaTitle((current) => (current.trim() ? current : "Licensed direct watch party"));
+      setRightsConfirmed(true);
+    }
     setAuthError("");
     setAuthGuided(false);
     setAuthInfo("");
@@ -2064,6 +2125,10 @@ function App() {
   }, [mediaTitle, rightsConfirmed, roomCode, watchUrl]);
 
   useEffect(() => {
+    writeJson(CUSTOM_EMOTICONS_KEY, customEmoticons);
+  }, [customEmoticons]);
+
+  useEffect(() => {
     setCaptionsOn(settings.subtitlesEnabled);
   }, [settings.subtitlesEnabled]);
 
@@ -2496,7 +2561,7 @@ function App() {
   if (!session || currentPath === "/auth") {
     return (
       <main className={`auth-root ${themeClass}`}>
-        <section className="auth-card">
+        <section className="auth-card compact-page-shell">
           <p className="route-pill">Step 2 / 4 • Authentication</p>
           <img src={brandLogoPath} alt="KinoPulse logo" className="brand-logo" />
           <h1>KinoPulse Rooms</h1>
@@ -2605,86 +2670,57 @@ function App() {
   }
 
   const RoomComposer = (
-    <section className="panel room-composer">
-      <h2>Quick lobby</h2>
-      <p className="subtle">
-        Host: <strong>{selectedService.name}</strong> • {selectedService.legalHint}
-      </p>
-      <div className="auth-browser-card lobby-auth-card">
-        <div className="auth-browser-head">
-          <h3>Official account handoff</h3>
-          <span className={`chip ${serviceConnected ? "chip-safe" : ""}`}>
-            {serviceConnected ? "Signed in" : "Sign-in required"}
-          </span>
-        </div>
-        <p className="subtle">
-          Keep auth and content selection in official service pages for policy compliance, then return for auto-handoff.
-        </p>
-        <div className="button-row">
-          <button type="button" className="browser-cta" onClick={startServiceSignIn}>
-            One-tap {selectedService.name} sign-in
-          </button>
-          <button type="button" onClick={openServiceCatalog}>
-            Open service catalog
-          </button>
-          <button type="button" onClick={confirmServiceSignIn}>
-            Fallback: I finished sign-in
-          </button>
-          <button type="button" onClick={openVoiceRoom}>
-            Open voice room
-          </button>
-        </div>
+    <section className="panel room-composer compact-room-composer">
+      <div className="panel-head">
+        <h2>Quick lobby</h2>
+        <span className={`chip ${serviceConnected ? "chip-safe" : ""}`}>
+          {serviceConnected ? `${selectedService.name} connected` : `${selectedService.name} sign-in needed`}
+        </span>
       </div>
-      <label>
-        Room code
-        <input
-          value={roomCode}
-          onChange={(event) => setRoomCode(event.target.value.toUpperCase())}
-          placeholder="PULSE901"
-        />
-      </label>
-      <div className="button-row">
+
+      <div className="compact-lobby-grid">
+        <label>
+          Room code
+          <input
+            value={roomCode}
+            onChange={(event) => setRoomCode(event.target.value.toUpperCase())}
+            placeholder="PULSE901"
+          />
+        </label>
+        <label>
+          Watch link
+          <input
+            value={watchUrl}
+            onChange={(event) => setWatchUrl(event.target.value)}
+            placeholder={`https://${selectedService.domains[0]}`}
+          />
+        </label>
+      </div>
+
+      <div className="button-row compact-row">
         <button type="button" onClick={generateRoomCode}>
-          Generate code
+          Generate
         </button>
         <button type="button" onClick={copyRoomCode}>
           Copy code
         </button>
-        <button type="button" onClick={copyInvite}>
-          Copy invite
-        </button>
         <button type="button" onClick={pasteWatchUrlFromClipboard}>
-          Auto-detect copied link
+          Auto-link
         </button>
       </div>
-      <label>
-        Session title
-        <input
-          value={mediaTitle}
-          onChange={(event) => setMediaTitle(event.target.value)}
-          placeholder={`${selectedService.name} watch party`}
-        />
-      </label>
-      <label>
-        Watch link
-        <input
-          value={watchUrl}
-          onChange={(event) => setWatchUrl(event.target.value)}
-          placeholder={`https://${selectedService.domains[0]}`}
-        />
-      </label>
+
       {allowedDomainStatus === "allowed" && <p className="ok">Service domain validated.</p>}
-      {allowedDomainStatus === "blocked" && (
-        <p className="warn">
-          Domain differs from selected service. Launch is blocked until link matches {selectedService.name}.
-        </p>
+      {allowedDomainStatus === "blocked" && selectedService.externalOnly && (
+        <p className="warn">Use a matching {selectedService.name} link to launch this room.</p>
+      )}
+      {allowedDomainStatus === "blocked" && !selectedService.externalOnly && (
+        <p className="note">Direct URL mode allows third-party links when you hold content rights.</p>
       )}
       {allowedDomainStatus === "invalid" && <p className="warn">Invalid URL. Use full https:// link.</p>}
       {!serviceConnected && (
-        <p className="warn">
-          Complete {selectedService.name} sign-in in secure tab before launching or sharing room.
-        </p>
+        <p className="warn">Complete secure {selectedService.name} sign-in first.</p>
       )}
+
       <label className="check">
         <input
           type="checkbox"
@@ -2693,10 +2729,8 @@ function App() {
         />
         I confirm I have rights or permission to share this content in the room.
       </label>
-      {joinPending && <p className="ok">Join request queued. Host approval will auto-connect you.</p>}
-      {authError && <p className="warn">{authError}</p>}
-      {notice && <p className="ok">{notice}</p>}
-      <div className="button-row">
+
+      <div className="button-row compact-row">
         <button disabled={launchDisabled} type="button" onClick={handleLaunchRoom}>
           Launch private room
         </button>
@@ -2707,6 +2741,58 @@ function App() {
           One-tap rejoin
         </button>
       </div>
+
+      <details className="auth-manual-profile lobby-advanced">
+        <summary>Advanced lobby tools</summary>
+        <label>
+          Session title
+          <input
+            value={mediaTitle}
+            onChange={(event) => setMediaTitle(event.target.value)}
+            placeholder={`${selectedService.name} watch party`}
+          />
+        </label>
+        <div className="button-row compact-row">
+          <button type="button" onClick={copyInvite}>
+            Copy invite
+          </button>
+          <button type="button" onClick={() => setSettingsOpen(true)}>
+            Open settings
+          </button>
+          <button type="button" onClick={switchProfile}>
+            Switch profile
+          </button>
+        </div>
+        <div className="auth-browser-card lobby-auth-card">
+          <div className="auth-browser-head">
+            <h3>Official account handoff</h3>
+            <span className={`chip ${serviceConnected ? "chip-safe" : ""}`}>
+              {serviceConnected ? "Signed in" : "Sign-in required"}
+            </span>
+          </div>
+          <p className="subtle">
+            We keep account login and content browsing in official provider pages for policy-safe playback.
+          </p>
+          <div className="button-row compact-row">
+            <button type="button" className="browser-cta" onClick={startServiceSignIn}>
+              One-tap {selectedService.name} sign-in
+            </button>
+            <button type="button" onClick={openServiceCatalog}>
+              Open service catalog
+            </button>
+            <button type="button" onClick={confirmServiceSignIn}>
+              Fallback: I finished sign-in
+            </button>
+            <button type="button" onClick={openVoiceRoom}>
+              Open voice room
+            </button>
+          </div>
+        </div>
+      </details>
+
+      {joinPending && <p className="ok">Join request queued. Host approval auto-connects you.</p>}
+      {authError && <p className="warn">{authError}</p>}
+      {notice && <p className="ok">{notice}</p>}
       {launchDisabled && launchBlockReason && <p className="note">{launchBlockReason}</p>}
     </section>
   );
@@ -2824,14 +2910,14 @@ function App() {
           <section className="panel">
             <h3>Custom emoticons</h3>
             <p className="subtle">
-              Upload image attachments to turn them into one-tap custom emoticons for room chat.
+              Movie-themed emoticon pack is preloaded from your concept style. Upload extra image emoticons anytime.
             </p>
             <div className="button-row">
               <button type="button" onClick={openEmoticonUploadPicker}>
                 Upload emoticon images
               </button>
-              <button type="button" onClick={clearCustomEmoticons} disabled={!customEmoticons.length}>
-                Clear custom pack
+              <button type="button" onClick={clearCustomEmoticons} disabled={!hasUploadedEmoticons}>
+                Clear uploaded pack
               </button>
             </div>
             <input
@@ -2851,7 +2937,7 @@ function App() {
                 ))}
               </div>
             ) : (
-              <p className="subtle">No custom emoticons yet.</p>
+              <p className="subtle">Movie emoticon pack ready.</p>
             )}
           </section>
 
@@ -2972,40 +3058,26 @@ function App() {
   if (currentPath === "/lobby" || !partyLive) {
     return (
       <main
-        className={`app app-pre-room ${themeClass} ${settings.reduceMotion ? "reduce-motion" : ""} ${
+        className={`app app-pre-room viewport-lock ${themeClass} ${settings.reduceMotion ? "reduce-motion" : ""} ${
           settings.cinematicButtons ? "cinematic-buttons" : ""
         } ${settings.highContrast ? "high-contrast" : ""}`}
       >
         <div className="ambient ambient-a" />
         <div className="ambient ambient-b" />
-        <section className="card pre-room-card">
+        <section className="card pre-room-card compact-page-shell">
           <header className="hero">
             <p className="route-pill">Step 3 / 4 • Lobby setup</p>
-            <img src={brandLogoPath} alt="KinoPulse logo" className="brand-logo" />
             <div className="hero-topline">
-              <p className="eyebrow">KinoSpolu Labs • Pulse Social</p>
+              <img src={brandLogoPath} alt="KinoPulse logo" className="brand-logo" />
               <span className="hero-badge">Auto-login active for {username}</span>
             </div>
-            <h1>KinoPulse Rooms</h1>
-            <p className="lead">
-              Pre-room mode keeps things simple: pick code, validate rights, and launch.
-            </p>
             <div className="status-row">
               <span className="chip chip-live">Ready to launch</span>
               <span className="chip">Service: {selectedService.name}</span>
               <span className="chip">{backendLabel}</span>
-              <span className="chip">Checkpoint: {formatStamp(lastCheckpointAt)}</span>
             </div>
           </header>
-          <div className="pre-room-actions">
-            <button type="button" onClick={() => setSettingsOpen(true)}>
-              Open settings
-            </button>
-            <button type="button" onClick={switchProfile}>
-              Switch profile
-            </button>
-          </div>
-          <section className="sticky-video lobby-preview">
+          <section className="sticky-video lobby-preview lobby-media-lock">
             <h2>Top preview player</h2>
             <p className="subtle">
               Player-first layout: preview stays on top, while lobby setup and controls sit below.
@@ -3042,29 +3114,24 @@ function App() {
 
   return (
     <main
-      className={`app app-room ${themeClass} ${settings.reduceMotion ? "reduce-motion" : ""} ${
+      className={`app app-room viewport-lock ${themeClass} ${settings.reduceMotion ? "reduce-motion" : ""} ${
         settings.cinematicButtons ? "cinematic-buttons" : ""
       } ${settings.highContrast ? "high-contrast" : ""}`}
     >
       <div className="ambient ambient-a" />
       <div className="ambient ambient-b" />
-      <section className="room-shell">
+      <section className="room-shell compact-page-shell">
         <header className="room-header">
           <p className="route-pill">Step 4 / 4 • Live room</p>
-          <img src={brandLogoPath} alt="KinoPulse logo" className="brand-logo" />
           <div className="hero-topline">
-            <p className="eyebrow">KinoSpolu Labs • Pulse Social</p>
+            <img src={brandLogoPath} alt="KinoPulse logo" className="brand-logo" />
             <span className="hero-badge">Auto-login active for {username}</span>
           </div>
-          <h1>KinoPulse Rooms</h1>
           <div className="status-row">
             <span className="chip chip-live">Room active</span>
             <span className="chip chip-safe">{syncHealth}</span>
-            <span className="chip">Engagement: {engagementScore}</span>
             <span className="chip">Role: {isHost ? "Host" : "Viewer"}</span>
             <span className="chip">{roomState.privateLobby ? "Private lobby" : "Public lobby"}</span>
-            <span className="chip">{backendLabel}</span>
-            <span className="chip">Checkpoint: {formatStamp(lastCheckpointAt)}</span>
             {roomState.chatLocked && <span className="chip">Chat locked</span>}
             {roomState.slowModeSec > 0 && <span className="chip">Slow mode {roomState.slowModeSec}s</span>}
           </div>
@@ -3079,7 +3146,7 @@ function App() {
           </div>
         </header>
 
-        <section className="sticky-video" ref={playerShellRef}>
+        <section className="sticky-video room-player-lock" ref={playerShellRef}>
           <h2>Sync console</h2>
           <div className="sync-metrics">
             <MetricTile label="Playback" value={roomState.playing ? "Playing" : "Paused"} />
@@ -3169,9 +3236,9 @@ function App() {
           </div>
         </section>
 
-        <section className="tab-stage">
+        <section className="tab-stage room-tab-stage">
           {activeTab === "chat" && (
-            <section className="panel tab-panel">
+            <section className="panel tab-panel chat-tab-panel">
               <div className="panel-head">
                 <h2>Social lounge</h2>
                 <p className="subtle">Live room chat</p>
@@ -3472,7 +3539,10 @@ function App() {
           )}
         </section>
 
-        <nav className="bottom-nav">
+        <nav
+          className="bottom-nav"
+          style={{ gridTemplateColumns: isHost ? "repeat(3, minmax(0, 1fr))" : "repeat(2, minmax(0, 1fr))" }}
+        >
           <button
             type="button"
             className={activeTab === "chat" ? "active" : ""}
