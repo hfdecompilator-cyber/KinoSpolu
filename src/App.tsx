@@ -3106,7 +3106,7 @@ function App() {
             className={authPanelsOpen ? "active" : ""}
             onClick={() => setAuthPanelsOpen((open) => !open)}
           >
-            {authPanelsOpen ? "Hide options" : "More options"}
+            {authPanelsOpen ? "Hide settings" : "Settings"}
           </button>
         </div>
       </main>
@@ -3814,14 +3814,6 @@ function App() {
               <span className="chip">Service: {selectedService.name}</span>
               <span className="chip">{backendLabel}</span>
             </div>
-            <div className="header-actions compact-row">
-              <button type="button" onClick={openSettingsPage}>
-                Settings page
-              </button>
-              <button type="button" onClick={openAccountPage}>
-                Account page
-              </button>
-            </div>
           </header>
           <section className="sticky-video lobby-preview lobby-media-lock">
             <h2>Top preview player</h2>
@@ -3849,7 +3841,7 @@ function App() {
           {lobbyToolsOpen && (
             <aside className="floating-panel floating-panel-inline" role="dialog" aria-label="Lobby tools">
               <div className="floating-panel-head">
-                <h3>Lobby tools</h3>
+                <h3>Lobby settings</h3>
                 <button type="button" onClick={() => setLobbyToolsOpen(false)}>
                   Close
                 </button>
@@ -3860,10 +3852,7 @@ function App() {
         </section>
         <div className="floating-dock">
           <button type="button" className={lobbyToolsOpen ? "active" : ""} onClick={() => setLobbyToolsOpen((v) => !v)}>
-            Tools
-          </button>
-          <button type="button" onClick={() => setSettingsOpen(true)}>
-            Settings
+            {lobbyToolsOpen ? "Hide settings" : "Settings"}
           </button>
         </div>
         {launchPasswordPromptOpen && (
@@ -3934,17 +3923,6 @@ function App() {
             {roomState.slowModeSec > 0 && <span className="chip">Slow mode {roomState.slowModeSec}s</span>}
           </div>
           {roomState.announcement && <p className="announcement-banner">📣 {roomState.announcement}</p>}
-          <div className="header-actions compact-row">
-            <button type="button" onClick={openSettingsPage}>
-              Settings page
-            </button>
-            <button type="button" onClick={openAccountPage}>
-              Account page
-            </button>
-            <button type="button" onClick={switchProfile}>
-              Switch profile
-            </button>
-          </div>
         </header>
 
         <section className="sticky-video room-player-lock" ref={playerShellRef}>
@@ -3987,27 +3965,6 @@ function App() {
               </button>
             </div>
           )}
-        </section>
-
-        <section className="panel room-core-actions">
-          <div className="panel-head">
-            <h2>Quick actions</h2>
-            <p className="subtle">Voice, webcam, and display controls</p>
-          </div>
-          <div className="button-row compact-row">
-            <button type="button" onClick={openVoiceRoom}>
-              Voice chat
-            </button>
-            <button type="button" onClick={activateWebcamBridge}>
-              Webcam
-            </button>
-            <button type="button" onClick={toggleFullscreen}>
-              {isFullscreen ? "Exit fullscreen" : "Fullscreen"}
-            </button>
-            <button type="button" onClick={() => setRoomPanelsOpen((open) => !open)}>
-              {roomPanelsOpen ? "Hide panels" : "Show panels"}
-            </button>
-          </div>
         </section>
 
         <section className={`panel room-host-controls ${roomToolsOpen ? "advanced-open" : "advanced-hidden"}`}>
@@ -4438,13 +4395,13 @@ function App() {
           className={roomPanelsOpen ? "active" : ""}
           onClick={() => setRoomPanelsOpen((open) => !open)}
         >
-          {roomPanelsOpen ? "Hide controls" : "Controls"}
+          {roomPanelsOpen ? "Hide settings" : "Settings"}
         </button>
       </div>
       {roomPanelsOpen && (
-        <aside className="floating-panel room-unified-panel" role="dialog" aria-label="Room controls">
+        <aside className="floating-panel room-unified-panel" role="dialog" aria-label="Room settings">
           <div className="floating-panel-head">
-            <h3>Control center</h3>
+            <h3>Settings & controls</h3>
             <button type="button" onClick={() => setRoomPanelsOpen(false)}>
               Close
             </button>
@@ -4471,6 +4428,9 @@ function App() {
             </button>
             <button type="button" onClick={copyCurrentRoomUrl}>
               Copy room URL
+            </button>
+            <button type="button" onClick={toggleFullscreen}>
+              {isFullscreen ? "Exit fullscreen" : "Fullscreen"}
             </button>
           </div>
           <div className="button-row compact-row">

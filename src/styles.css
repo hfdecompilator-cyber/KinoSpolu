@@ -1170,15 +1170,15 @@ button:disabled {
 }
 
 .room-shell {
-  grid-template-rows: auto minmax(48%, 1fr) auto minmax(22%, 1fr);
+  grid-template-rows: auto minmax(56%, 1fr) minmax(24%, 1fr);
 }
 
 .room-shell.minimal-mode {
-  grid-template-rows: auto minmax(48%, 1fr) auto minmax(22%, 1fr);
+  grid-template-rows: auto minmax(56%, 1fr) minmax(24%, 1fr);
 }
 
 .room-shell.tools-open {
-  grid-template-rows: auto minmax(40%, 1fr) auto auto minmax(18%, 1fr);
+  grid-template-rows: auto minmax(44%, 1fr) auto minmax(20%, 1fr);
 }
 
 .room-shell.minimal-mode .room-header .header-actions {
@@ -1192,10 +1192,6 @@ button:disabled {
 
 .room-player-lock .video-stage {
   min-height: clamp(180px, 34svh, 360px);
-}
-
-.room-core-actions {
-  padding: 9px 10px;
 }
 
 .video-stage:hover {
