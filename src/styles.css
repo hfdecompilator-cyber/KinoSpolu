@@ -1559,6 +1559,55 @@ button:disabled {
   gap: 10px;
 }
 
+.launch-password-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 38;
+  background: rgba(2, 6, 15, 0.48);
+  display: grid;
+  place-items: center;
+  padding: 14px;
+}
+
+.launch-password-modal {
+  width: min(360px, calc(100vw - 24px));
+  border-radius: 18px;
+  border: 1px solid rgba(236, 246, 255, 0.6);
+  background: linear-gradient(165deg, rgba(92, 43, 160, 0.9), rgba(74, 40, 132, 0.86), rgba(58, 33, 110, 0.9));
+  box-shadow: 0 18px 36px rgba(14, 6, 32, 0.52);
+  backdrop-filter: blur(14px);
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+}
+
+.launch-password-modal h3 {
+  font-size: 1.08rem;
+  line-height: 1.25;
+  color: #f8f5ff;
+}
+
+.launch-password-modal p {
+  color: rgba(248, 245, 255, 0.88);
+  font-size: 0.88rem;
+}
+
+.launch-password-modal label {
+  color: #f4ecff;
+}
+
+.launch-password-modal input {
+  background: rgba(228, 215, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.56);
+  color: #fff;
+}
+
+.launch-password-modal .button-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
 .service-chip-row {
   display: flex;
   flex-wrap: wrap;

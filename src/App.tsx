@@ -90,6 +90,7 @@ type RoomState = {
   slowModeSec: number;
   chatLocked: boolean;
   announcement: string;
+  roomPassword: string;
 };
 
 type ChatMessage = {
@@ -470,18 +471,20 @@ const getServiceById = (serviceId: string | null | undefined) =>
 
 const normalizeRoomState = (state: RoomState | null): RoomState | null => {
   if (!state) return null;
+  const normalizedRoomPassword = typeof state.roomPassword === "string" ? state.roomPassword : "";
   return {
     ...state,
     serviceId: state.serviceId || "direct",
     mediaTitle: state.mediaTitle || "Watch party stream",
     mediaUrl: state.mediaUrl || SAMPLE_VIDEO,
-    privateLobby: state.privateLobby ?? true,
+    privateLobby: state.privateLobby ?? !!normalizedRoomPassword,
     locked: state.locked ?? false,
     approvedUsers: Array.isArray(state.approvedUsers) ? state.approvedUsers : [],
     joinQueue: Array.isArray(state.joinQueue) ? state.joinQueue : [],
     slowModeSec: typeof state.slowModeSec === "number" ? state.slowModeSec : 0,
     chatLocked: !!state.chatLocked,
-    announcement: typeof state.announcement === "string" ? state.announcement : ""
+    announcement: typeof state.announcement === "string" ? state.announcement : "",
+    roomPassword: normalizedRoomPassword
   };
 };
 
@@ -677,6 +680,9 @@ function App() {
   const [joinPending, setJoinPending] = useState(false);
   const [rulesAccepted, setRulesAccepted] = useState(false);
   const [autoJoinRoomCode, setAutoJoinRoomCode] = useState<string | null>(null);
+  const [launchPasswordPromptOpen, setLaunchPasswordPromptOpen] = useState(false);
+  const [launchPasswordDraft, setLaunchPasswordDraft] = useState("");
+  const [launchPasswordError, setLaunchPasswordError] = useState("");
 
   const [chatInput, setChatInput] = useState("");
   const [chatError, setChatError] = useState("");
@@ -1837,12 +1843,14 @@ function App() {
     [handleSwipeNavigation]
   );
 
-  const handleLaunchRoom = useCallback(() => {
+  const handleLaunchRoom = useCallback((roomPassword = "") => {
     if (!session) {
       setAuthError("Complete profile login first.");
       flashNotice("Sign in before going live.");
       return;
     }
+    const normalizedRoomPassword = roomPassword.trim();
+    const passwordProtected = normalizedRoomPassword.length > 0;
     const effectiveRoomCode = normalizedRoomCode || createRoomCode();
     const effectiveRoomKey = roomStorageKey(effectiveRoomCode);
     if (!normalizedRoomCode) {
@@ -1858,13 +1866,14 @@ function App() {
       playing: true,
       playhead: 0,
       updatedAt: Date.now(),
-      privateLobby: true,
+      privateLobby: passwordProtected,
       locked: false,
       approvedUsers: [session.username],
       joinQueue: [],
       slowModeSec: 0,
       chatLocked: false,
-      announcement: ""
+      announcement: "",
+      roomPassword: normalizedRoomPassword
     };
     writeJson(effectiveRoomKey, state);
     flushSync(() => {
@@ -1877,6 +1886,12 @@ function App() {
     setRulesAccepted(true);
     rememberRoom(state.roomCode);
     appendChat("Room is now live. Everyone syncing in...", false, true, "System");
+    if (passwordProtected) {
+      appendChat("Password mode enabled. Share password with your invited viewers.", false, true, "System");
+      flashNotice("Private room secured with password.");
+    } else {
+      flashNotice("Public room launched. Anyone with code can request to join.");
+    }
     pushLog(`Room ${state.roomCode} launched`);
     if (!localStorage.getItem(ACH_FIRST_ROOM_KEY)) {
       localStorage.setItem(ACH_FIRST_ROOM_KEY, "1");
@@ -1901,6 +1916,33 @@ function App() {
     navigate
   ]);
 
+  const requestLaunchRoom = useCallback(() => {
+    if (launchDisabled) {
+      if (launchBlockReason) setAuthError(launchBlockReason);
+      return;
+    }
+    setLaunchPasswordDraft("");
+    setLaunchPasswordError("");
+    setLaunchPasswordPromptOpen(true);
+  }, [launchBlockReason, launchDisabled, setAuthError]);
+
+  const launchPublicRoom = useCallback(() => {
+    setLaunchPasswordPromptOpen(false);
+    setLaunchPasswordError("");
+    handleLaunchRoom("");
+  }, [handleLaunchRoom]);
+
+  const launchPrivateRoom = useCallback(() => {
+    const cleanPassword = launchPasswordDraft.trim();
+    if (!cleanPassword) {
+      setLaunchPasswordError("Enter password or tap Skip.");
+      return;
+    }
+    setLaunchPasswordPromptOpen(false);
+    setLaunchPasswordError("");
+    handleLaunchRoom(cleanPassword);
+  }, [handleLaunchRoom, launchPasswordDraft]);
+
   const handleJoinRoom = useCallback(() => {
     if (!session) {
       setAuthError("Complete profile login first.");
@@ -1923,7 +1965,7 @@ function App() {
       setAuthError(`Sign in to ${selectedService.name} in secure tab before joining.`);
       return;
     }
-    const loaded = normalizeRoomState(readJson<RoomState | null>(roomKey, null));
+    let loaded = normalizeRoomState(readJson<RoomState | null>(roomKey, null));
     if (!loaded) {
       setAuthError("No room found with that code.");
       return;
@@ -1932,6 +1974,31 @@ function App() {
     if (loaded.serviceId !== selectedService.id) {
       persistServiceChoice(loaded.serviceId);
       setAuthError(`Switched to ${getServiceById(loaded.serviceId).name} for this room.`);
+    }
+
+    if (
+      loaded.roomPassword &&
+      loaded.leader !== session.username &&
+      !loaded.approvedUsers.includes(session.username)
+    ) {
+      const enteredPassword = (window.prompt("Enter room password to join this private room") || "").trim();
+      if (!enteredPassword) {
+        setAuthError("Password required for this private room.");
+        return;
+      }
+      if (enteredPassword !== loaded.roomPassword) {
+        setAuthError("Incorrect room password.");
+        return;
+      }
+      const approvedUsers = Array.from(new Set([...loaded.approvedUsers, session.username]));
+      const passwordApproved = {
+        ...loaded,
+        approvedUsers,
+        updatedAt: Date.now()
+      };
+      writeJson(roomKey, passwordApproved);
+      sendRealtimeEvent("room_state", passwordApproved);
+      loaded = passwordApproved;
     }
 
     const canEnter =
@@ -1996,7 +2063,7 @@ function App() {
     if (!isHost || !roomState) return;
     if (roomState.privateLobby) {
       const approvedUsers = Array.from(new Set([...roomState.approvedUsers, ...roomState.joinQueue]));
-      publishRoomState({ privateLobby: false, approvedUsers, joinQueue: [] });
+      publishRoomState({ privateLobby: false, approvedUsers, joinQueue: [], roomPassword: "" });
       pushLog("Private lobby disabled. Pending users approved.");
       return;
     }
@@ -2563,6 +2630,9 @@ function App() {
     setRoomToolsOpen(false);
     setRoomPanelsOpen(false);
     setAuthPanelsOpen(false);
+    setLaunchPasswordPromptOpen(false);
+    setLaunchPasswordError("");
+    setLaunchPasswordDraft("");
     if (currentPath !== "/auth") {
       authAutoProceedRef.current = null;
     }
@@ -3348,8 +3418,8 @@ function App() {
       </label>
 
       <div className="button-row compact-row">
-        <button disabled={launchDisabled} type="button" onClick={handleLaunchRoom}>
-          Launch private room
+        <button disabled={launchDisabled} type="button" onClick={requestLaunchRoom}>
+          Go live
         </button>
         <button type="button" onClick={handleJoinRoom}>
           Join room
@@ -3449,7 +3519,7 @@ function App() {
         I confirm I have rights or permission to share this content in the room.
       </label>
       <div className="button-row compact-row">
-        <button disabled={launchDisabled} type="button" onClick={handleLaunchRoom}>
+        <button disabled={launchDisabled} type="button" onClick={requestLaunchRoom}>
           Go live
         </button>
         <button type="button" onClick={handleJoinRoom}>
@@ -3796,6 +3866,35 @@ function App() {
             Settings
           </button>
         </div>
+        {launchPasswordPromptOpen && (
+          <div className="launch-password-backdrop" onClick={() => setLaunchPasswordPromptOpen(false)}>
+            <section className="launch-password-modal" onClick={(event) => event.stopPropagation()}>
+              <h3>Do you want to set a password for this stream?</h3>
+              <p>Set password = private room. Skip = public room.</p>
+              <label>
+                Password
+                <input
+                  type="password"
+                  value={launchPasswordDraft}
+                  onChange={(event) => {
+                    setLaunchPasswordDraft(event.target.value);
+                    if (launchPasswordError) setLaunchPasswordError("");
+                  }}
+                  placeholder="Password"
+                />
+              </label>
+              {launchPasswordError && <p className="warn">{launchPasswordError}</p>}
+              <div className="button-row compact-row">
+                <button type="button" onClick={launchPublicRoom}>
+                  Skip
+                </button>
+                <button type="button" onClick={launchPrivateRoom}>
+                  Set
+                </button>
+              </div>
+            </section>
+          </div>
+        )}
         {SettingsSheet}
         {achievement && (
           <aside className="achievement-pop" role="status" aria-live="polite">
@@ -3830,6 +3929,7 @@ function App() {
             <span className="chip chip-safe">{syncHealth}</span>
             <span className="chip">Role: {isHost ? "Host" : "Viewer"}</span>
             <span className="chip">{roomState.privateLobby ? "Private lobby" : "Public lobby"}</span>
+            {roomState.roomPassword && <span className="chip">Password protected</span>}
             {roomState.chatLocked && <span className="chip">Chat locked</span>}
             {roomState.slowModeSec > 0 && <span className="chip">Slow mode {roomState.slowModeSec}s</span>}
           </div>
