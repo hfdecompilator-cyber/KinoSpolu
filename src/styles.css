@@ -598,6 +598,15 @@ button:disabled {
     0 12px 28px rgba(1, 8, 21, 0.45);
 }
 
+.lobby-preview {
+  margin-top: 8px;
+  padding: 14px;
+}
+
+.lobby-video-stage {
+  min-height: 280px;
+}
+
 .sync-metrics {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -753,6 +762,15 @@ button:disabled {
   margin-top: 4px;
 }
 
+.bubble-emoticon {
+  width: min(110px, 48vw);
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  margin-top: 6px;
+}
+
 .quick-row {
   display: flex;
   flex-wrap: wrap;
@@ -782,6 +800,28 @@ button:disabled {
   min-width: 84px;
   background: rgba(168, 85, 247, 0.26);
   border-color: rgba(196, 181, 253, 0.52);
+}
+
+.emoji-chip.custom {
+  min-width: 44px;
+  padding: 4px;
+}
+
+.emoji-chip.custom img {
+  display: block;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  object-fit: cover;
+  margin: 0 auto;
+}
+
+.emoji-chip.preview-only {
+  pointer-events: none;
+}
+
+.custom-strip {
+  margin-top: 6px;
 }
 
 .quick {

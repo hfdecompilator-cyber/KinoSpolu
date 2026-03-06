@@ -8,6 +8,7 @@ import {
   useRef,
   useState
 } from "react";
+import { flushSync } from "react-dom";
 import { Browser } from "@capacitor/browser";
 import { Capacitor } from "@capacitor/core";
 import {
@@ -27,6 +28,7 @@ const ACH_FIRST_ROOM_KEY = `${STORAGE_PREFIX}.achievement.firstRoom`;
 const LOBBY_DRAFT_KEY = `${STORAGE_PREFIX}.lobbyDraft`;
 const PROGRESS_SNAPSHOT_KEY = `${STORAGE_PREFIX}.progressSnapshot`;
 const MANUAL_CHECKPOINT_KEY = `${STORAGE_PREFIX}.manualCheckpoint`;
+const CUSTOM_EMOTICONS_KEY = `${STORAGE_PREFIX}.customEmoticons`;
 const SAMPLE_VIDEO =
   "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
 const SUPABASE_CONFIGURED = Boolean(
@@ -92,6 +94,13 @@ type ChatMessage = {
   text: string;
   own: boolean;
   at: string;
+  emoticonSrc?: string;
+};
+
+type CustomEmoticon = {
+  id: string;
+  label: string;
+  src: string;
 };
 
 type UserSettings = {
@@ -123,6 +132,7 @@ type ProgressSnapshot = {
   wowReactions: number;
   moderationLog: string[];
   blockedUsers: string[];
+  customEmoticons: CustomEmoticon[];
   updatedAt: number;
 };
 
@@ -396,6 +406,62 @@ const formatStamp = (value: number | null) => {
   });
 };
 
+const firstUrlFromText = (value: string) => {
+  const match = value.match(/https?:\/\/[^\s]+/i);
+  return match?.[0] ?? "";
+};
+
+const extractYouTubeWatchUrl = (value: string): string | null => {
+  const candidate = firstUrlFromText(value.trim()) || value.trim();
+  if (!candidate) return null;
+  try {
+    const parsed = new URL(candidate);
+    const host = parsed.hostname.toLowerCase();
+    if (host === "youtu.be") {
+      const id = parsed.pathname.replace("/", "").trim();
+      return id ? `https://www.youtube.com/watch?v=${id}` : null;
+    }
+    if (!host.includes("youtube.com")) return null;
+    if (parsed.pathname.startsWith("/watch")) {
+      const id = parsed.searchParams.get("v");
+      return id ? `https://www.youtube.com/watch?v=${id}` : null;
+    }
+    const segments = parsed.pathname.split("/").filter(Boolean);
+    if (segments[0] === "shorts" || segments[0] === "live") {
+      const id = segments[1];
+      return id ? `https://www.youtube.com/watch?v=${id}` : null;
+    }
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+};
+
+const extractServiceUrl = (value: string, domains: string[]) => {
+  const candidate = firstUrlFromText(value.trim()) || value.trim();
+  if (!candidate) return null;
+  try {
+    const parsed = new URL(candidate);
+    if (domains.includes(parsed.hostname.toLowerCase())) return parsed.toString();
+    return null;
+  } catch {
+    return null;
+  }
+};
+
+const toYouTubeEmbedUrl = (value: string) => {
+  const normalized = extractYouTubeWatchUrl(value);
+  if (!normalized) return null;
+  try {
+    const parsed = new URL(normalized);
+    const id = parsed.searchParams.get("v");
+    if (!id) return null;
+    return `https://www.youtube-nocookie.com/embed/${id}`;
+  } catch {
+    return null;
+  }
+};
+
 const sanitizeProfanity = (value: string) =>
   value
     .replace(/\b(fuck|shit|bitch|asshole)\b/gi, "***")
@@ -430,6 +496,14 @@ const ChatBubble = memo(function ChatBubble({
         <strong>{message.user}</strong>
         {showTimestamp && <span>{message.at}</span>}
       </p>
+      {message.emoticonSrc && (
+        <img
+          src={message.emoticonSrc}
+          alt={message.text || "custom emoticon"}
+          className="bubble-emoticon"
+          loading="lazy"
+        />
+      )}
       <p className="bubble-text">{message.text}</p>
     </article>
   );
@@ -497,6 +571,9 @@ function App() {
   const [reportReason, setReportReason] = useState("harassment");
   const [reportDetails, setReportDetails] = useState("");
   const [reportSubmitted, setReportSubmitted] = useState(false);
+  const [customEmoticons, setCustomEmoticons] = useState<CustomEmoticon[]>(() =>
+    readJson<CustomEmoticon[]>(CUSTOM_EMOTICONS_KEY, [])
+  );
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<TabKey>("chat");
@@ -524,6 +601,9 @@ function App() {
   const wakeLockRef = useRef<WakeLockHandle | null>(null);
   const roomChannelRef = useRef<RealtimeChannel | null>(null);
   const importBackupRef = useRef<HTMLInputElement | null>(null);
+  const emoticonUploadRef = useRef<HTMLInputElement | null>(null);
+  const pendingBrowserActionRef = useRef<{ serviceId: string; mode: "signin" | "catalog" } | null>(null);
+  const browserLaunchAtRef = useRef(0);
 
   const selectedService = useMemo(
     () => getServiceById(selectedServiceId || session?.serviceId),
@@ -575,6 +655,16 @@ function App() {
     return roomState.mediaUrl || SAMPLE_VIDEO;
   }, [effectiveService.externalOnly, roomState]);
 
+  const lobbyPreviewUrl = useMemo(() => {
+    if (selectedService.externalOnly) return SAMPLE_VIDEO;
+    return watchUrl.trim() || SAMPLE_VIDEO;
+  }, [selectedService.externalOnly, watchUrl]);
+
+  const youtubeEmbedPreview = useMemo(() => {
+    if (selectedService.id !== "youtube") return null;
+    return toYouTubeEmbedUrl(watchUrl);
+  }, [selectedService.id, watchUrl]);
+
   const participantList = useMemo(() => {
     if (!roomState) return participantProfiles.map((entry) => ({ ...entry, role: "viewer" }));
     const approved = roomState.approvedUsers.map((entry) => ({
@@ -608,6 +698,17 @@ function App() {
     !domainCompliant ||
     !normalizedRoomCode ||
     !serviceConnected;
+  const launchBlockReason = !session
+    ? "Complete profile login first."
+    : !serviceConnected
+    ? `Connect ${selectedService.name} first.`
+    : !normalizedRoomCode
+    ? "Add a room code."
+    : !domainCompliant
+    ? `Use a valid ${selectedService.name} link.`
+    : !rightsConfirmed
+    ? "Confirm rights to enable launch."
+    : "";
 
   const flashNotice = useCallback((message: string) => {
     setNotice(message);
@@ -634,11 +735,13 @@ function App() {
       wowReactions,
       moderationLog,
       blockedUsers,
+      customEmoticons,
       updatedAt
     }),
     [
       blockedUsers,
       chatMessages,
+      customEmoticons,
       fireReactions,
       heartReactions,
       mediaTitle,
@@ -716,6 +819,13 @@ function App() {
       setHeartReactions(Math.max(0, incoming.heartReactions || 0));
       setWowReactions(Math.max(0, incoming.wowReactions || 0));
       setBlockedUsers(Array.isArray(incoming.blockedUsers) ? incoming.blockedUsers : []);
+      const safeCustomEmoticons = Array.isArray(incoming.customEmoticons)
+        ? incoming.customEmoticons
+            .filter((entry) => entry && typeof entry.src === "string" && typeof entry.label === "string")
+            .slice(0, 12)
+        : [];
+      setCustomEmoticons(safeCustomEmoticons);
+      writeJson(CUSTOM_EMOTICONS_KEY, safeCustomEmoticons);
       setModerationLog(
         [`Restored from ${source}`, ...(Array.isArray(incoming.moderationLog) ? incoming.moderationLog : [])].slice(
           0,
@@ -794,6 +904,63 @@ function App() {
     [applyProgressSnapshot, flashNotice]
   );
 
+  const openEmoticonUploadPicker = useCallback(() => {
+    emoticonUploadRef.current?.click();
+  }, []);
+
+  const importCustomEmoticonFiles = useCallback(
+    async (event: ChangeEvent<HTMLInputElement>) => {
+      const files = Array.from(event.target.files || []);
+      if (!files.length) return;
+      const imageFiles = files.filter((file) => file.type.startsWith("image/")).slice(0, 6);
+      if (!imageFiles.length) {
+        flashNotice("Select image files for custom emoticons.");
+        event.target.value = "";
+        return;
+      }
+      try {
+        const encoded = await Promise.all(
+          imageFiles.map(
+            (file) =>
+              new Promise<CustomEmoticon>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () =>
+                  resolve({
+                    id: `${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+                    label: file.name.replace(/\.[^/.]+$/, "").slice(0, 18) || "custom",
+                    src: String(reader.result || "")
+                  });
+                reader.onerror = () => reject(new Error("read-failed"));
+                reader.readAsDataURL(file);
+              })
+          )
+        );
+        const safe = encoded.filter((entry) => entry.src.startsWith("data:image/"));
+        if (!safe.length) {
+          flashNotice("Could not read selected images.");
+          return;
+        }
+        setCustomEmoticons((current) => {
+          const merged = [...safe, ...current].slice(0, 12);
+          writeJson(CUSTOM_EMOTICONS_KEY, merged);
+          return merged;
+        });
+        flashNotice(`${safe.length} custom emoticon${safe.length > 1 ? "s" : ""} added.`);
+      } catch {
+        flashNotice("Could not import custom emoticons.");
+      } finally {
+        event.target.value = "";
+      }
+    },
+    [flashNotice]
+  );
+
+  const clearCustomEmoticons = useCallback(() => {
+    setCustomEmoticons([]);
+    writeJson(CUSTOM_EMOTICONS_KEY, []);
+    flashNotice("Custom emoticons cleared.");
+  }, [flashNotice]);
+
   const pushLog = useCallback((event: string) => {
     setModerationLog((current) => [event, ...current].slice(0, 18));
   }, []);
@@ -829,15 +996,22 @@ function App() {
   }, []);
 
   const appendChat = useCallback(
-    (text: string, own: boolean, shouldBroadcast = false, senderOverride?: string) => {
+    (
+      text: string,
+      own: boolean,
+      shouldBroadcast = false,
+      senderOverride?: string,
+      emoticonSrc?: string
+    ) => {
       const clean = text.trim();
-      if (!clean) return;
+      if (!clean && !emoticonSrc) return;
       const message: ChatMessage = {
         id: Date.now() + Math.floor(Math.random() * 1000),
         user: senderOverride || (own ? username || "You" : "System"),
-        text: clean,
+        text: clean || "sent an emoticon",
         own,
-        at: getClock()
+        at: getClock(),
+        emoticonSrc
       };
       setChatMessages((current) => [...current, message].slice(-90));
       if (shouldBroadcast) {
@@ -953,23 +1127,127 @@ function App() {
     navigate("/auth");
   }, [navigate, persistServiceChoice]);
 
+  const autoContinueToLobby = useCallback(
+    (preferredName?: string) => {
+      if (!selectedService.id) return "";
+      const fromPreferred = preferredName?.trim();
+      const fromDraft = authName.trim();
+      const fromSession = session?.username?.trim();
+      const fromRecent = recentProfiles[0]?.trim();
+      const fallbackGuest = `Guest${Math.floor(Math.random() * 900 + 100)}`;
+      const nextName = fromPreferred || fromDraft || fromSession || fromRecent || fallbackGuest;
+      persistSession({ username: nextName, serviceId: selectedService.id });
+      rememberProfile(nextName);
+      setAuthName("");
+      setAuthError("");
+      if (currentPath === "/auth") navigate("/lobby");
+      return nextName;
+    },
+    [
+      authName,
+      currentPath,
+      navigate,
+      persistSession,
+      recentProfiles,
+      rememberProfile,
+      selectedService.id,
+      session?.username
+    ]
+  );
+
+  const detectServiceLinkFromClipboard = useCallback(
+    async (serviceId: string) => {
+      if (!navigator.clipboard?.readText) return null;
+      try {
+        const text = (await navigator.clipboard.readText()).trim();
+        if (!text) return null;
+        const service = getServiceById(serviceId);
+        const detected =
+          service.id === "youtube"
+            ? extractYouTubeWatchUrl(text)
+            : extractServiceUrl(text, service.domains);
+        if (!detected) return null;
+        setWatchUrl(detected);
+        setRightsConfirmed(true);
+        setMediaTitle((current) =>
+          current.trim() || (service.id === "youtube" ? "YouTube Watch Party" : `${service.name} watch party`)
+        );
+        return detected;
+      } catch {
+        return null;
+      }
+    },
+    []
+  );
+
+  const handleBrowserReturn = useCallback(async () => {
+    const pending = pendingBrowserActionRef.current;
+    if (!pending) return;
+    pendingBrowserActionRef.current = null;
+
+    const service = getServiceById(pending.serviceId);
+    const detectedUrl = await detectServiceLinkFromClipboard(service.id);
+
+    if (pending.mode === "signin") {
+      patchServiceAuth(service.id, true);
+      setAuthGuided(true);
+      setAuthInfo(
+        `${service.name} tab closed. Connected automatically on this device${
+          detectedUrl ? " and video link detected from clipboard." : "."
+        }`
+      );
+      if (currentPath === "/auth") {
+        const who = autoContinueToLobby();
+        flashNotice(`${service.name} ready. Continuing as ${who}.`);
+      }
+      return;
+    }
+
+    if (detectedUrl) {
+      flashNotice(`${service.name} video link detected from clipboard.`);
+      if (currentPath !== "/room") navigate("/lobby");
+      return;
+    }
+
+    flashNotice(`${service.name} tab closed. Copy a video URL for instant handoff.`);
+  }, [
+    autoContinueToLobby,
+    currentPath,
+    detectServiceLinkFromClipboard,
+    flashNotice,
+    navigate,
+    patchServiceAuth
+  ]);
+
   const startServiceSignIn = useCallback(async () => {
     if (selectedService.id === "direct") {
       patchServiceAuth("direct", true);
       setAuthGuided(true);
-      setAuthInfo("Direct URL mode does not require external account sign-in.");
+      setAuthInfo("Direct URL mode is account-free. Auto-continuing.");
+      if (currentPath === "/auth") {
+        const who = autoContinueToLobby();
+        flashNotice(`Direct mode ready. Continuing as ${who}.`);
+      }
       return;
     }
     try {
+      pendingBrowserActionRef.current = { serviceId: selectedService.id, mode: "signin" };
+      browserLaunchAtRef.current = Date.now();
       await openSecureServiceTab(selectedService.loginUrl, selectedService.accent);
       setAuthGuided(true);
       setAuthInfo(
-        `Secure ${selectedService.name} tab opened. Sign in there, then return and confirm below.`
+        selectedService.id === "youtube"
+          ? "Google/YouTube sign-in tab opened. After sign-in, open a video and copy link. Returning auto-continues."
+          : `Secure ${selectedService.name} tab opened. Sign in there and return. We'll auto-continue.`
       );
     } catch {
+      pendingBrowserActionRef.current = null;
       setAuthInfo("Could not open sign-in tab. Try again.");
     }
   }, [
+    autoContinueToLobby,
+    currentPath,
+    flashNotice,
     openSecureServiceTab,
     patchServiceAuth,
     selectedService.accent,
@@ -980,9 +1258,22 @@ function App() {
 
   const confirmServiceSignIn = useCallback(() => {
     patchServiceAuth(selectedService.id, true);
-    setAuthInfo(`${selectedService.name} sign-in marked complete.`);
+    setAuthGuided(true);
+    setAuthInfo(`${selectedService.name} sign-in marked complete. Auto-continuing.`);
+    if (currentPath === "/auth") {
+      const who = autoContinueToLobby();
+      flashNotice(`${selectedService.name} connected. Continuing as ${who}.`);
+      return;
+    }
     flashNotice(`${selectedService.name} connected for this profile.`);
-  }, [flashNotice, patchServiceAuth, selectedService.id, selectedService.name]);
+  }, [
+    autoContinueToLobby,
+    currentPath,
+    flashNotice,
+    patchServiceAuth,
+    selectedService.id,
+    selectedService.name
+  ]);
 
   const openServiceCatalog = useCallback(async () => {
     const target =
@@ -990,9 +1281,16 @@ function App() {
         ? watchUrl || SAMPLE_VIDEO
         : selectedService.browseUrl;
     try {
+      pendingBrowserActionRef.current = { serviceId: selectedService.id, mode: "catalog" };
+      browserLaunchAtRef.current = Date.now();
       await openSecureServiceTab(target, selectedService.accent);
-      flashNotice(`${selectedService.name} opened in secure tab.`);
+      flashNotice(
+        selectedService.id === "youtube"
+          ? "YouTube opened. Copy a video URL there; returning can auto-fill lobby."
+          : `${selectedService.name} opened in secure tab.`
+      );
     } catch {
+      pendingBrowserActionRef.current = null;
       flashNotice("Could not open service tab.");
     }
   }, [
@@ -1016,12 +1314,24 @@ function App() {
         flashNotice("Clipboard is empty.");
         return;
       }
-      setWatchUrl(clipped);
+      const detected =
+        selectedService.id === "youtube"
+          ? extractYouTubeWatchUrl(clipped)
+          : extractServiceUrl(clipped, selectedService.domains) || clipped;
+      if (!detected) {
+        flashNotice(`No valid ${selectedService.name} link found in clipboard.`);
+        return;
+      }
+      setWatchUrl(detected);
+      setRightsConfirmed(true);
+      if (selectedService.id === "youtube") {
+        setMediaTitle((current) => current.trim() || "YouTube Watch Party");
+      }
       flashNotice("Watch link pasted from clipboard.");
     } catch {
       flashNotice("Clipboard read failed. Paste manually.");
     }
-  }, [flashNotice]);
+  }, [flashNotice, selectedService.domains, selectedService.id, selectedService.name]);
 
   const handleAuthSubmit = useCallback(
     (event: FormEvent) => {
@@ -1031,25 +1341,16 @@ function App() {
         setAuthError(`Sign in to ${selectedService.name} in the secure tab first.`);
         return;
       }
-      const clean = authName.trim();
-      const generated = `Guest${Math.floor(Math.random() * 900 + 100)}`;
-      const nextName = clean || generated;
-      persistSession({ username: nextName, serviceId: selectedService.id });
-      rememberProfile(nextName);
-      setAuthError("");
-      setAuthName("");
+      const nextName = autoContinueToLobby(authName.trim());
       unlockAchievement("Profile Ready", `${nextName} connected to ${selectedService.name}`);
-      navigate("/lobby");
     },
     [
       authName,
-      persistSession,
-      rememberProfile,
+      autoContinueToLobby,
       selectedService.id,
       selectedService.name,
       serviceConnected,
-      unlockAchievement,
-      navigate
+      unlockAchievement
     ]
   );
 
@@ -1060,20 +1361,14 @@ function App() {
       return;
     }
     const name = `Guest${Math.floor(Math.random() * 900 + 100)}`;
-    persistSession({ username: name, serviceId: selectedService.id });
-    rememberProfile(name);
-    setAuthError("");
-    setAuthName("");
+    autoContinueToLobby(name);
     unlockAchievement("Quick Entry", `${name} joined instantly`);
-    navigate("/lobby");
   }, [
-    persistSession,
-    rememberProfile,
+    autoContinueToLobby,
     selectedService.id,
     selectedService.name,
     serviceConnected,
-    unlockAchievement,
-    navigate
+    unlockAchievement
   ]);
 
   const loginRecentProfile = useCallback(
@@ -1083,13 +1378,9 @@ function App() {
         setAuthError(`Sign in to ${selectedService.name} in the secure tab first.`);
         return;
       }
-      persistSession({ username: profile, serviceId: selectedService.id });
-      rememberProfile(profile);
-      setAuthError("");
-      setAuthName("");
-      navigate("/lobby");
+      autoContinueToLobby(profile);
     },
-    [persistSession, rememberProfile, selectedService.id, selectedService.name, serviceConnected, navigate]
+    [autoContinueToLobby, selectedService.id, selectedService.name, serviceConnected]
   );
 
   const generateRoomCode = useCallback(() => {
@@ -1147,7 +1438,11 @@ function App() {
       announcement: ""
     };
     writeJson(roomKey, state);
-    setRoomState(state);
+    flushSync(() => {
+      setRoomState(state);
+      setWatchUrl(state.mediaUrl);
+      setMediaTitle(state.mediaTitle);
+    });
     sendRealtimeEvent("room_state", state);
     setJoinPending(false);
     setRulesAccepted(true);
@@ -1198,9 +1493,11 @@ function App() {
       !loaded.privateLobby;
 
     if (canEnter) {
-      setRoomState(loaded);
-      setWatchUrl(loaded.mediaUrl);
-      setMediaTitle(loaded.mediaTitle);
+      flushSync(() => {
+        setRoomState(loaded);
+        setWatchUrl(loaded.mediaUrl);
+        setMediaTitle(loaded.mediaTitle);
+      });
       setJoinPending(false);
       setAuthError("");
       rememberRoom(loaded.roomCode);
@@ -1405,6 +1702,14 @@ function App() {
     playUiPop();
   }, [appendChat, playUiPop]);
 
+  const sendCustomEmoticon = useCallback(
+    (emoticon: CustomEmoticon) => {
+      appendChat(emoticon.label, true, true, undefined, emoticon.src);
+      playUiPop();
+    },
+    [appendChat, playUiPop]
+  );
+
   const runModAction = useCallback(
     (action: string) => {
       pushLog(`${action} action triggered`);
@@ -1535,6 +1840,33 @@ function App() {
   }, [selectedServiceId, session?.serviceId]);
 
   useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    let active = true;
+    let listener: { remove: () => Promise<void> } | null = null;
+    void Browser.addListener("browserFinished", () => {
+      if (!active) return;
+      void handleBrowserReturn();
+    }).then((handle) => {
+      listener = handle;
+    });
+    return () => {
+      active = false;
+      if (listener) void listener.remove();
+    };
+  }, [handleBrowserReturn]);
+
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== "visible") return;
+      if (!pendingBrowserActionRef.current) return;
+      if (Date.now() - browserLaunchAtRef.current < 1000) return;
+      void handleBrowserReturn();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, [handleBrowserReturn]);
+
+  useEffect(() => {
     writeJson(LOBBY_DRAFT_KEY, {
       roomCode,
       mediaTitle,
@@ -1628,10 +1960,34 @@ function App() {
       return;
     }
     if (selectedServiceId && session && !roomState && currentPath === "/room") {
+      const fallbackCode = (normalizedRoomCode || localStorage.getItem(lastRoomKey(session.username)) || "")
+        .trim()
+        .toUpperCase();
+      if (fallbackCode) {
+        const restored = normalizeRoomState(
+          readJson<RoomState | null>(roomStorageKey(fallbackCode), null)
+        );
+        if (restored) {
+          setRoomState(restored);
+          setWatchUrl(restored.mediaUrl);
+          setMediaTitle(restored.mediaTitle);
+          setRoomCode(restored.roomCode);
+          return;
+        }
+      }
       navigate("/lobby", { replace: true });
       return;
     }
-  }, [currentPath, navigate, roomState, selectedServiceId, session]);
+  }, [currentPath, navigate, normalizedRoomCode, roomState, selectedServiceId, session]);
+
+  useEffect(() => {
+    if (currentPath !== "/auth") return;
+    if (session || !selectedServiceId || !serviceConnected) return;
+    const recent = recentProfiles[0];
+    if (!recent) return;
+    const who = autoContinueToLobby(recent);
+    flashNotice(`Auto-continued with ${who}.`);
+  }, [autoContinueToLobby, currentPath, flashNotice, recentProfiles, selectedServiceId, serviceConnected, session]);
 
   useEffect(() => {
     if (selectedService.id !== "direct") return;
@@ -1896,24 +2252,29 @@ function App() {
             <ol className="auth-steps">
               <li>Open official sign-in tab.</li>
               <li>Authenticate directly with {selectedService.name}.</li>
-              <li>Return and confirm to continue profile login.</li>
+              <li>Return to KinoPulse — we auto-continue to lobby.</li>
             </ol>
             <div className="button-row">
               <button type="button" className="browser-cta" onClick={startServiceSignIn}>
-                Open secure sign-in tab
+                One-tap secure sign-in
               </button>
               <button
                 type="button"
                 onClick={confirmServiceSignIn}
                 disabled={!authGuided && !serviceConnected}
               >
-                I completed sign-in
+                Fallback: I completed sign-in
               </button>
               <button type="button" onClick={openServiceCatalog}>
                 Open {selectedService.name} home
               </button>
             </div>
             {authInfo && <p className="ok">{authInfo}</p>}
+            {selectedService.id === "youtube" && (
+              <p className="note">
+                YouTube fast path: sign in, open a video, copy link, and return — lobby auto-fills your watch URL.
+              </p>
+            )}
             <p className="note">
               Policy-safe pattern: official provider auth in system/custom tab, no embedded credential
               interception.
@@ -1969,17 +2330,17 @@ function App() {
           </span>
         </div>
         <p className="subtle">
-          Keep authentication and content selection in official service pages for policy compliance.
+          Keep auth and content selection in official service pages for policy compliance, then return for auto-handoff.
         </p>
         <div className="button-row">
           <button type="button" className="browser-cta" onClick={startServiceSignIn}>
-            Open {selectedService.name} sign-in tab
+            One-tap {selectedService.name} sign-in
           </button>
           <button type="button" onClick={openServiceCatalog}>
             Open service catalog
           </button>
           <button type="button" onClick={confirmServiceSignIn}>
-            I finished sign-in
+            Fallback: I finished sign-in
           </button>
           <button type="button" onClick={openVoiceRoom}>
             Open voice room
@@ -2005,7 +2366,7 @@ function App() {
           Copy invite
         </button>
         <button type="button" onClick={pasteWatchUrlFromClipboard}>
-          Paste link
+          Auto-detect copied link
         </button>
       </div>
       <label>
@@ -2058,6 +2419,7 @@ function App() {
           One-tap rejoin
         </button>
       </div>
+      {launchDisabled && launchBlockReason && <p className="note">{launchBlockReason}</p>}
     </section>
   );
 
@@ -2169,6 +2531,40 @@ function App() {
               onChange={importBackupFromFile}
               hidden
             />
+          </section>
+
+          <section className="panel">
+            <h3>Custom emoticons</h3>
+            <p className="subtle">
+              Upload image attachments to turn them into one-tap custom emoticons for room chat.
+            </p>
+            <div className="button-row">
+              <button type="button" onClick={openEmoticonUploadPicker}>
+                Upload emoticon images
+              </button>
+              <button type="button" onClick={clearCustomEmoticons} disabled={!customEmoticons.length}>
+                Clear custom pack
+              </button>
+            </div>
+            <input
+              ref={emoticonUploadRef}
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={importCustomEmoticonFiles}
+              hidden
+            />
+            {customEmoticons.length > 0 ? (
+              <div className="emoji-strip custom-strip">
+                {customEmoticons.slice(0, 8).map((emoticon) => (
+                  <span key={`settings-${emoticon.id}`} className="emoji-chip custom preview-only">
+                    <img src={emoticon.src} alt={emoticon.label} />
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="subtle">No custom emoticons yet.</p>
+            )}
           </section>
 
           {RoomComposer}
@@ -2321,6 +2717,28 @@ function App() {
               Switch profile
             </button>
           </div>
+          <section className="sticky-video lobby-preview">
+            <h2>Top preview player</h2>
+            <p className="subtle">
+              Player-first layout: preview stays on top, while lobby setup and controls sit below.
+            </p>
+            {youtubeEmbedPreview ? (
+              <iframe
+                className="video-stage lobby-video-stage"
+                src={youtubeEmbedPreview}
+                title="YouTube preview"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+              />
+            ) : (
+              <video className="video-stage lobby-video-stage" src={lobbyPreviewUrl} controls playsInline muted />
+            )}
+            {selectedService.externalOnly && (
+              <p className="subtle">
+                External-service policy mode: official provider pages handle playback rights; preview remains in-app.
+              </p>
+            )}
+          </section>
           {RoomComposer}
         </section>
         {SettingsSheet}
@@ -2473,6 +2891,17 @@ function App() {
                 >
                   AI mood
                 </button>
+                {customEmoticons.slice(0, 3).map((emoticon) => (
+                  <button
+                    key={`top-custom-${emoticon.id}`}
+                    type="button"
+                    className="emoji-chip custom"
+                    onClick={() => sendCustomEmoticon(emoticon)}
+                    disabled={(!rulesAccepted && !isHost) || (!!roomState.chatLocked && !isHost)}
+                  >
+                    <img src={emoticon.src} alt={emoticon.label} />
+                  </button>
+                ))}
               </div>
 
               {!isHost && !rulesAccepted && (
@@ -2534,6 +2963,17 @@ function App() {
                 >
                   AI mood
                 </button>
+                {customEmoticons.slice(0, 6).map((emoticon) => (
+                  <button
+                    key={`custom-${emoticon.id}`}
+                    type="button"
+                    className="emoji-chip custom"
+                    onClick={() => sendCustomEmoticon(emoticon)}
+                    disabled={(!rulesAccepted && !isHost) || (!!roomState.chatLocked && !isHost)}
+                  >
+                    <img src={emoticon.src} alt={emoticon.label} />
+                  </button>
+                ))}
               </div>
               <form className="inline-form" onSubmit={handleSendChat}>
                 <input
