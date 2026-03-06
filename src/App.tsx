@@ -1,4 +1,5 @@
 import {
+  ChangeEvent,
   FormEvent,
   memo,
   useCallback,
@@ -23,6 +24,9 @@ const PROFILES_KEY = `${STORAGE_PREFIX}.profiles`;
 const SERVICE_KEY = `${STORAGE_PREFIX}.service`;
 const SERVICE_AUTH_KEY = `${STORAGE_PREFIX}.serviceAuth`;
 const ACH_FIRST_ROOM_KEY = `${STORAGE_PREFIX}.achievement.firstRoom`;
+const LOBBY_DRAFT_KEY = `${STORAGE_PREFIX}.lobbyDraft`;
+const PROGRESS_SNAPSHOT_KEY = `${STORAGE_PREFIX}.progressSnapshot`;
+const MANUAL_CHECKPOINT_KEY = `${STORAGE_PREFIX}.manualCheckpoint`;
 const SAMPLE_VIDEO =
   "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
 const SUPABASE_CONFIGURED = Boolean(
@@ -101,6 +105,25 @@ type UserSettings = {
   soundsEnabled: boolean;
   profanityFilter: boolean;
   keepScreenAwake: boolean;
+};
+
+type ProgressSnapshot = {
+  selectedServiceId: string | null;
+  serviceAuth: Record<string, boolean>;
+  session: Session | null;
+  roomCode: string;
+  mediaTitle: string;
+  watchUrl: string;
+  rightsConfirmed: boolean;
+  roomState: RoomState | null;
+  settings: UserSettings;
+  chatMessages: ChatMessage[];
+  fireReactions: number;
+  heartReactions: number;
+  wowReactions: number;
+  moderationLog: string[];
+  blockedUsers: string[];
+  updatedAt: number;
 };
 
 type TabKey = "chat" | "participants" | "tools";
@@ -304,6 +327,8 @@ const defaultSettings: UserSettings = {
 };
 
 const roomStorageKey = (roomCode: string) => `${STORAGE_PREFIX}.room.${roomCode}`;
+const roomChatKey = (roomCode: string) => `${STORAGE_PREFIX}.chat.${roomCode}`;
+const roomReactionKey = (roomCode: string) => `${STORAGE_PREFIX}.reactions.${roomCode}`;
 const lastRoomKey = (username: string) => `${STORAGE_PREFIX}.lastRoom.${username}`;
 const rulesKey = (roomCode: string, username: string) =>
   `${STORAGE_PREFIX}.rules.${roomCode}.${username}`;
@@ -360,6 +385,16 @@ const formatTime = (seconds: number) => {
 
 const getClock = () =>
   new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+const formatStamp = (value: number | null) => {
+  if (!value) return "No checkpoint yet";
+  return new Date(value).toLocaleString([], {
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+};
 
 const sanitizeProfanity = (value: string) =>
   value
@@ -422,10 +457,23 @@ function App() {
   const [authGuided, setAuthGuided] = useState(false);
   const [authInfo, setAuthInfo] = useState("");
 
-  const [roomCode, setRoomCode] = useState("");
-  const [mediaTitle, setMediaTitle] = useState("");
-  const [watchUrl, setWatchUrl] = useState(SAMPLE_VIDEO);
-  const [rightsConfirmed, setRightsConfirmed] = useState(false);
+  const [lobbyDraftSeed] = useState(() =>
+    readJson<{
+      roomCode: string;
+      mediaTitle: string;
+      watchUrl: string;
+      rightsConfirmed: boolean;
+    }>(LOBBY_DRAFT_KEY, {
+      roomCode: "",
+      mediaTitle: "",
+      watchUrl: SAMPLE_VIDEO,
+      rightsConfirmed: false
+    })
+  );
+  const [roomCode, setRoomCode] = useState(lobbyDraftSeed.roomCode || "");
+  const [mediaTitle, setMediaTitle] = useState(lobbyDraftSeed.mediaTitle || "");
+  const [watchUrl, setWatchUrl] = useState(lobbyDraftSeed.watchUrl || SAMPLE_VIDEO);
+  const [rightsConfirmed, setRightsConfirmed] = useState(!!lobbyDraftSeed.rightsConfirmed);
   const [roomState, setRoomState] = useState<RoomState | null>(null);
   const [joinPending, setJoinPending] = useState(false);
   const [rulesAccepted, setRulesAccepted] = useState(false);
@@ -460,6 +508,12 @@ function App() {
   const [backendHealth, setBackendHealth] = useState<"fallback" | "checking" | "healthy" | "degraded">(
     SUPABASE_CONFIGURED ? "checking" : "fallback"
   );
+  const [lastCheckpointAt, setLastCheckpointAt] = useState<number | null>(() =>
+    readJson<ProgressSnapshot | null>(PROGRESS_SNAPSHOT_KEY, null)?.updatedAt ?? null
+  );
+  const [lastManualCheckpointAt, setLastManualCheckpointAt] = useState<number | null>(() =>
+    readJson<ProgressSnapshot | null>(MANUAL_CHECKPOINT_KEY, null)?.updatedAt ?? null
+  );
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const playerShellRef = useRef<HTMLDivElement | null>(null);
@@ -469,6 +523,7 @@ function App() {
   const achievementTimeoutRef = useRef<number | null>(null);
   const wakeLockRef = useRef<WakeLockHandle | null>(null);
   const roomChannelRef = useRef<RealtimeChannel | null>(null);
+  const importBackupRef = useRef<HTMLInputElement | null>(null);
 
   const selectedService = useMemo(
     () => getServiceById(selectedServiceId || session?.serviceId),
@@ -561,6 +616,183 @@ function App() {
     }
     noticeTimeoutRef.current = window.setTimeout(() => setNotice(""), 2200);
   }, []);
+
+  const captureProgressSnapshot = useCallback(
+    (updatedAt = Date.now()): ProgressSnapshot => ({
+      selectedServiceId,
+      serviceAuth,
+      session,
+      roomCode,
+      mediaTitle,
+      watchUrl,
+      rightsConfirmed,
+      roomState,
+      settings,
+      chatMessages,
+      fireReactions,
+      heartReactions,
+      wowReactions,
+      moderationLog,
+      blockedUsers,
+      updatedAt
+    }),
+    [
+      blockedUsers,
+      chatMessages,
+      fireReactions,
+      heartReactions,
+      mediaTitle,
+      moderationLog,
+      rightsConfirmed,
+      roomCode,
+      roomState,
+      selectedServiceId,
+      serviceAuth,
+      session,
+      settings,
+      watchUrl,
+      wowReactions
+    ]
+  );
+
+  const saveProgressSnapshot = useCallback(
+    (mode: "auto" | "manual" = "auto") => {
+      const updatedAt = Date.now();
+      const snapshot = captureProgressSnapshot(updatedAt);
+      writeJson(PROGRESS_SNAPSHOT_KEY, snapshot);
+      setLastCheckpointAt(updatedAt);
+      if (mode === "manual") {
+        writeJson(MANUAL_CHECKPOINT_KEY, snapshot);
+        setLastManualCheckpointAt(updatedAt);
+        flashNotice("Progress checkpoint saved.");
+      }
+      return snapshot;
+    },
+    [captureProgressSnapshot, flashNotice]
+  );
+
+  const applyProgressSnapshot = useCallback(
+    (incoming: ProgressSnapshot, source: string) => {
+      const safeSettings = { ...defaultSettings, ...(incoming.settings || {}) };
+      const safeServiceAuth = Object.fromEntries(
+        Object.entries(incoming.serviceAuth || {}).filter((entry) => typeof entry[1] === "boolean")
+      ) as Record<string, boolean>;
+      const safeMessages = Array.isArray(incoming.chatMessages)
+        ? incoming.chatMessages
+            .filter((entry) => entry && typeof entry.text === "string" && typeof entry.user === "string")
+            .slice(-90)
+        : [];
+      const safeRoomState = normalizeRoomState(incoming.roomState);
+      const safeUpdatedAt = typeof incoming.updatedAt === "number" ? incoming.updatedAt : Date.now();
+
+      setSelectedServiceId(incoming.selectedServiceId || null);
+      if (incoming.selectedServiceId) localStorage.setItem(SERVICE_KEY, incoming.selectedServiceId);
+      else localStorage.removeItem(SERVICE_KEY);
+
+      setServiceAuth(safeServiceAuth);
+      writeJson(SERVICE_AUTH_KEY, safeServiceAuth);
+
+      setSession(incoming.session || null);
+      if (incoming.session) writeJson(SESSION_KEY, incoming.session);
+      else localStorage.removeItem(SESSION_KEY);
+
+      setRoomCode(incoming.roomCode || "");
+      setMediaTitle(incoming.mediaTitle || "");
+      setWatchUrl(incoming.watchUrl || SAMPLE_VIDEO);
+      setRightsConfirmed(!!incoming.rightsConfirmed);
+      writeJson(LOBBY_DRAFT_KEY, {
+        roomCode: incoming.roomCode || "",
+        mediaTitle: incoming.mediaTitle || "",
+        watchUrl: incoming.watchUrl || SAMPLE_VIDEO,
+        rightsConfirmed: !!incoming.rightsConfirmed
+      });
+
+      setSettings(safeSettings);
+      writeJson(SETTINGS_KEY, safeSettings);
+      setCaptionsOn(safeSettings.subtitlesEnabled);
+
+      setChatMessages(safeMessages);
+      setFireReactions(Math.max(0, incoming.fireReactions || 0));
+      setHeartReactions(Math.max(0, incoming.heartReactions || 0));
+      setWowReactions(Math.max(0, incoming.wowReactions || 0));
+      setBlockedUsers(Array.isArray(incoming.blockedUsers) ? incoming.blockedUsers : []);
+      setModerationLog(
+        [`Restored from ${source}`, ...(Array.isArray(incoming.moderationLog) ? incoming.moderationLog : [])].slice(
+          0,
+          18
+        )
+      );
+
+      setRoomState(safeRoomState);
+      if (safeRoomState?.roomCode) {
+        writeJson(roomStorageKey(safeRoomState.roomCode), safeRoomState);
+        writeJson(roomChatKey(safeRoomState.roomCode), safeMessages);
+        writeJson(roomReactionKey(safeRoomState.roomCode), {
+          fireReactions: Math.max(0, incoming.fireReactions || 0),
+          heartReactions: Math.max(0, incoming.heartReactions || 0),
+          wowReactions: Math.max(0, incoming.wowReactions || 0)
+        });
+      }
+
+      writeJson(PROGRESS_SNAPSHOT_KEY, { ...incoming, updatedAt: safeUpdatedAt });
+      setLastCheckpointAt(safeUpdatedAt);
+
+      if (safeRoomState && incoming.session) navigate("/room");
+      else if (incoming.session) navigate("/lobby");
+      else if (incoming.selectedServiceId) navigate("/auth");
+      else navigate("/services");
+    },
+    [navigate]
+  );
+
+  const restoreLastCheckpoint = useCallback(() => {
+    const manual = readJson<ProgressSnapshot | null>(MANUAL_CHECKPOINT_KEY, null);
+    const snapshot = manual ?? readJson<ProgressSnapshot | null>(PROGRESS_SNAPSHOT_KEY, null);
+    if (!snapshot) {
+      flashNotice("No checkpoint found yet.");
+      return;
+    }
+    applyProgressSnapshot(snapshot, manual ? "manual checkpoint" : "latest auto-checkpoint");
+    flashNotice("Checkpoint restored.");
+  }, [applyProgressSnapshot, flashNotice]);
+
+  const exportBackup = useCallback(() => {
+    const snapshot = saveProgressSnapshot("auto");
+    const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `kinopulse-backup-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+    document.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+    flashNotice("Backup exported.");
+  }, [flashNotice, saveProgressSnapshot]);
+
+  const openImportBackupPicker = useCallback(() => {
+    importBackupRef.current?.click();
+  }, []);
+
+  const importBackupFromFile = useCallback(
+    async (event: ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      try {
+        const raw = await file.text();
+        const parsed = JSON.parse(raw) as ProgressSnapshot;
+        applyProgressSnapshot(parsed, `backup file (${file.name})`);
+        writeJson(MANUAL_CHECKPOINT_KEY, parsed);
+        setLastManualCheckpointAt(typeof parsed.updatedAt === "number" ? parsed.updatedAt : Date.now());
+        flashNotice("Backup imported and restored.");
+      } catch {
+        flashNotice("Invalid backup file.");
+      } finally {
+        event.target.value = "";
+      }
+    },
+    [applyProgressSnapshot, flashNotice]
+  );
 
   const pushLog = useCallback((event: string) => {
     setModerationLog((current) => [event, ...current].slice(0, 18));
@@ -1303,8 +1535,67 @@ function App() {
   }, [selectedServiceId, session?.serviceId]);
 
   useEffect(() => {
+    writeJson(LOBBY_DRAFT_KEY, {
+      roomCode,
+      mediaTitle,
+      watchUrl,
+      rightsConfirmed
+    });
+  }, [mediaTitle, rightsConfirmed, roomCode, watchUrl]);
+
+  useEffect(() => {
     setCaptionsOn(settings.subtitlesEnabled);
   }, [settings.subtitlesEnabled]);
+
+  useEffect(() => {
+    if (!roomState?.roomCode) return;
+    const savedMessages = readJson<ChatMessage[]>(roomChatKey(roomState.roomCode), []);
+    if (savedMessages.length) {
+      setChatMessages(savedMessages.slice(-90));
+    }
+    const savedReactions = readJson<{
+      fireReactions: number;
+      heartReactions: number;
+      wowReactions: number;
+    } | null>(roomReactionKey(roomState.roomCode), null);
+    if (savedReactions) {
+      setFireReactions(Math.max(0, savedReactions.fireReactions || 0));
+      setHeartReactions(Math.max(0, savedReactions.heartReactions || 0));
+      setWowReactions(Math.max(0, savedReactions.wowReactions || 0));
+    }
+  }, [roomState?.roomCode]);
+
+  useEffect(() => {
+    if (!roomState?.roomCode) return;
+    writeJson(roomChatKey(roomState.roomCode), chatMessages);
+    writeJson(roomReactionKey(roomState.roomCode), {
+      fireReactions,
+      heartReactions,
+      wowReactions
+    });
+  }, [chatMessages, fireReactions, heartReactions, roomState?.roomCode, wowReactions]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      saveProgressSnapshot("auto");
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [saveProgressSnapshot]);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      saveProgressSnapshot("auto");
+    }, 15000);
+    return () => window.clearInterval(interval);
+  }, [saveProgressSnapshot]);
+
+  useEffect(() => {
+    const onBeforeUnload = () => {
+      saveProgressSnapshot("auto");
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [saveProgressSnapshot]);
 
   useEffect(() => {
     const onFullScreenChange = () => setIsFullscreen(!!document.fullscreenElement);
@@ -1846,6 +2137,40 @@ function App() {
             )}
           </section>
 
+          <section className="panel">
+            <h3>Progress safety</h3>
+            <p className="subtle">
+              Automatic checkpoints keep your lobby, chat, and moderation state safe on refresh or crashes.
+            </p>
+            <p className="subtle">
+              Last auto-checkpoint: <strong>{formatStamp(lastCheckpointAt)}</strong>
+            </p>
+            <p className="subtle">
+              Last manual checkpoint: <strong>{formatStamp(lastManualCheckpointAt)}</strong>
+            </p>
+            <div className="button-row">
+              <button type="button" onClick={() => saveProgressSnapshot("manual")}>
+                Save checkpoint now
+              </button>
+              <button type="button" onClick={restoreLastCheckpoint}>
+                Restore checkpoint
+              </button>
+              <button type="button" onClick={exportBackup}>
+                Export backup
+              </button>
+              <button type="button" onClick={openImportBackupPicker}>
+                Import backup
+              </button>
+            </div>
+            <input
+              ref={importBackupRef}
+              type="file"
+              accept=".json,application/json"
+              onChange={importBackupFromFile}
+              hidden
+            />
+          </section>
+
           {RoomComposer}
 
           <section className="panel legal">
@@ -1985,6 +2310,7 @@ function App() {
               <span className="chip chip-live">Ready to launch</span>
               <span className="chip">Service: {selectedService.name}</span>
               <span className="chip">{backendLabel}</span>
+              <span className="chip">Checkpoint: {formatStamp(lastCheckpointAt)}</span>
             </div>
           </header>
           <div className="pre-room-actions">
@@ -2032,6 +2358,7 @@ function App() {
             <span className="chip">Role: {isHost ? "Host" : "Viewer"}</span>
             <span className="chip">{roomState.privateLobby ? "Private lobby" : "Public lobby"}</span>
             <span className="chip">{backendLabel}</span>
+            <span className="chip">Checkpoint: {formatStamp(lastCheckpointAt)}</span>
             {roomState.chatLocked && <span className="chip">Chat locked</span>}
             {roomState.slowModeSec > 0 && <span className="chip">Slow mode {roomState.slowModeSec}s</span>}
           </div>
