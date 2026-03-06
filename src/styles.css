@@ -3,6 +3,8 @@
   line-height: 1.5;
   color: #f8fafc;
   background: radial-gradient(circle at 10% 20%, #2563eb 0%, #0b1633 38%, #020617 100%);
+  --press-scale: 0.97;
+  --ui-transition: 170ms ease;
 }
 
 * {
@@ -68,6 +70,7 @@ body {
   gap: 16px;
   position: relative;
   z-index: 2;
+  animation: card-in 420ms ease-out;
 }
 
 h1 {
@@ -139,6 +142,9 @@ h3 {
   font-weight: 600;
   color: #e2e8f0;
   background: rgba(15, 23, 42, 0.5);
+  transition: transform var(--ui-transition), border-color var(--ui-transition),
+    background-color var(--ui-transition);
+  animation: chip-in 320ms ease-out;
 }
 
 .chip-live {
@@ -182,6 +188,13 @@ h3 {
   gap: 12px;
   background: linear-gradient(170deg, rgba(15, 23, 42, 0.85), rgba(10, 15, 28, 0.8));
   content-visibility: auto;
+  transition: transform 220ms ease, border-color 220ms ease;
+  animation: panel-in 460ms ease-out;
+}
+
+.panel:hover {
+  transform: translateY(-1px);
+  border-color: rgba(125, 211, 252, 0.45);
 }
 
 .sync-metrics {
@@ -245,6 +258,7 @@ h3 {
   color: #fde68a;
   background: rgba(113, 63, 18, 0.26);
   font-size: 0.88rem;
+  animation: banner-slide 320ms ease-out;
 }
 
 .presence-strip {
@@ -278,6 +292,16 @@ textarea {
   border-radius: 8px;
   padding: 9px 10px;
   font: inherit;
+  transition: border-color var(--ui-transition), box-shadow var(--ui-transition),
+    transform var(--ui-transition);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: rgba(96, 165, 250, 0.92);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.22);
 }
 
 textarea {
@@ -294,12 +318,53 @@ button {
   font-weight: 600;
   cursor: pointer;
   box-shadow: 0 8px 20px rgba(37, 99, 235, 0.35);
+  position: relative;
+  overflow: hidden;
+  transform: translateY(0);
+  transition: transform var(--ui-transition), box-shadow var(--ui-transition),
+    filter var(--ui-transition);
+  will-change: transform;
+}
+
+button::after {
+  content: "";
+  position: absolute;
+  width: 160%;
+  height: 200%;
+  left: -30%;
+  top: -45%;
+  background: radial-gradient(circle at center, rgba(255, 255, 255, 0.32) 0%, transparent 60%);
+  opacity: 0;
+  transform: scale(0.2);
+  transition: opacity 120ms ease, transform 190ms ease;
+  pointer-events: none;
+}
+
+button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 26px rgba(37, 99, 235, 0.42);
+  filter: saturate(1.08);
+}
+
+button:active:not(:disabled) {
+  transform: scale(var(--press-scale));
+}
+
+button:active:not(:disabled)::after {
+  opacity: 1;
+  transform: scale(1);
+}
+
+button:focus-visible {
+  outline: 2px solid rgba(147, 197, 253, 0.9);
+  outline-offset: 1px;
 }
 
 button:disabled {
   opacity: 0.55;
   cursor: not-allowed;
   box-shadow: none;
+  transform: none;
 }
 
 .check {
@@ -480,6 +545,12 @@ button:disabled {
   border-radius: 10px;
   padding: 8px;
   background: rgba(15, 23, 42, 0.62);
+  transition: transform var(--ui-transition), border-color var(--ui-transition);
+}
+
+.queue-item:hover {
+  transform: translateY(-1px);
+  border-color: rgba(125, 211, 252, 0.46);
 }
 
 .queue-item span {
@@ -588,6 +659,13 @@ a {
   animation: none;
 }
 
+.reduce-motion *,
+.reduce-motion *::before,
+.reduce-motion *::after {
+  animation: none !important;
+  transition: none !important;
+}
+
 @keyframes float {
   0%,
   100% {
@@ -598,7 +676,58 @@ a {
   }
 }
 
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes chip-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes banner-slide {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+
   .ambient {
     animation: none;
   }
