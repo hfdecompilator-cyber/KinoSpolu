@@ -8,35 +8,36 @@ import {
   useState
 } from "react";
 
-const STORAGE_PREFIX = "kinopulse.v3";
+const STORAGE_PREFIX = "kinopulse.v4";
 const SESSION_KEY = `${STORAGE_PREFIX}.session`;
 const SETTINGS_KEY = `${STORAGE_PREFIX}.settings`;
 const PROFILES_KEY = `${STORAGE_PREFIX}.profiles`;
+const SERVICE_KEY = `${STORAGE_PREFIX}.service`;
+const ACH_FIRST_ROOM_KEY = `${STORAGE_PREFIX}.achievement.firstRoom`;
 const SAMPLE_VIDEO =
   "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
-const allowedHosts = [
-  "youtube.com",
-  "www.youtube.com",
-  "youtu.be",
-  "vimeo.com",
-  "commondatastorage.googleapis.com"
-];
-const participantProfiles = [
-  { name: "Nova", mood: "host" },
-  { name: "Mira", mood: "hype" },
-  { name: "Axel", mood: "focus" },
-  { name: "Juno", mood: "chill" }
-];
-const quickSparkMessages = ["That cut was wild", "Sync is perfect now", "Drop another banger"];
+
+type StreamingService = {
+  id: string;
+  name: string;
+  tag: string;
+  accent: string;
+  domains: string[];
+  externalOnly: boolean;
+  legalHint: string;
+};
 
 type Session = {
   username: string;
+  serviceId: string;
 };
 
 type RoomState = {
   roomCode: string;
   leader: string;
-  videoUrl: string;
+  serviceId: string;
+  mediaTitle: string;
+  mediaUrl: string;
   playing: boolean;
   playhead: number;
   updatedAt: number;
@@ -63,6 +64,76 @@ type UserSettings = {
   autoSyncOnJoin: boolean;
 };
 
+type TabKey = "chat" | "participants" | "tools";
+
+const serviceCatalog: StreamingService[] = [
+  {
+    id: "netflix",
+    name: "Netflix",
+    tag: "N",
+    accent: "#e50914",
+    domains: ["www.netflix.com", "netflix.com"],
+    externalOnly: true,
+    legalHint: "Every viewer must use their own Netflix account."
+  },
+  {
+    id: "disney",
+    name: "Disney+",
+    tag: "D+",
+    accent: "#113ccf",
+    domains: ["www.disneyplus.com", "disneyplus.com"],
+    externalOnly: true,
+    legalHint: "Sync room coordinates playback; no stream rebroadcasting."
+  },
+  {
+    id: "prime",
+    name: "Prime Video",
+    tag: "P",
+    accent: "#00a8e1",
+    domains: ["www.primevideo.com", "primevideo.com"],
+    externalOnly: true,
+    legalHint: "Users should sign in with personal Prime subscriptions."
+  },
+  {
+    id: "youtube",
+    name: "YouTube",
+    tag: "YT",
+    accent: "#ff0033",
+    domains: ["www.youtube.com", "youtube.com", "youtu.be"],
+    externalOnly: true,
+    legalHint: "Use official YouTube links and respect creator rights."
+  },
+  {
+    id: "direct",
+    name: "Licensed Direct URL",
+    tag: "URL",
+    accent: "#2d72ff",
+    domains: ["commondatastorage.googleapis.com"],
+    externalOnly: false,
+    legalHint: "Host only content you own or are licensed to distribute."
+  }
+];
+
+const participantProfiles = [
+  { name: "Nova", mood: "host" },
+  { name: "Mira", mood: "hype" },
+  { name: "Axel", mood: "focus" },
+  { name: "Juno", mood: "chill" }
+];
+
+const quickSparkMessages = ["That cut was wild", "Sync is perfect now", "Drop another banger"];
+
+const defaultSettings: UserSettings = {
+  compactChat: false,
+  reduceMotion: false,
+  autoSyncOnJoin: true
+};
+
+const roomStorageKey = (roomCode: string) => `${STORAGE_PREFIX}.room.${roomCode}`;
+const lastRoomKey = (username: string) => `${STORAGE_PREFIX}.lastRoom.${username}`;
+const rulesKey = (roomCode: string, username: string) =>
+  `${STORAGE_PREFIX}.rules.${roomCode}.${username}`;
+
 const readJson = <T,>(key: string, fallback: T): T => {
   try {
     const raw = localStorage.getItem(key);
@@ -77,24 +148,22 @@ const writeJson = (key: string, value: unknown) => {
   localStorage.setItem(key, JSON.stringify(value));
 };
 
-const roomStorageKey = (roomCode: string) => `${STORAGE_PREFIX}.room.${roomCode}`;
-const lastRoomKey = (username: string) => `${STORAGE_PREFIX}.lastRoom.${username}`;
-const defaultSettings: UserSettings = {
-  compactChat: false,
-  reduceMotion: false,
-  autoSyncOnJoin: true
-};
-
 const upsertProfile = (profiles: string[], profile: string) => {
   const normalized = profile.trim();
   if (!normalized) return profiles;
   return [normalized, ...profiles.filter((entry) => entry !== normalized)].slice(0, 6);
 };
 
+const getServiceById = (serviceId: string | null | undefined) =>
+  serviceCatalog.find((service) => service.id === serviceId) ?? serviceCatalog[0];
+
 const normalizeRoomState = (state: RoomState | null): RoomState | null => {
   if (!state) return null;
   return {
     ...state,
+    serviceId: state.serviceId || "direct",
+    mediaTitle: state.mediaTitle || "Watch party stream",
+    mediaUrl: state.mediaUrl || SAMPLE_VIDEO,
     privateLobby: state.privateLobby ?? true,
     locked: state.locked ?? false,
     approvedUsers: Array.isArray(state.approvedUsers) ? state.approvedUsers : [],
@@ -146,22 +215,25 @@ const ChatBubble = memo(function ChatBubble({ message }: { message: ChatMessage 
 });
 
 function App() {
-  const [session, setSession] = useState<Session | null>(() => readJson(SESSION_KEY, null));
-  const [recentProfiles, setRecentProfiles] = useState<string[]>(() =>
-    readJson<string[]>(PROFILES_KEY, [])
+  const [selectedServiceId, setSelectedServiceId] = useState<string | null>(() =>
+    localStorage.getItem(SERVICE_KEY)
   );
+  const [session, setSession] = useState<Session | null>(() => readJson(SESSION_KEY, null));
+  const [recentProfiles, setRecentProfiles] = useState<string[]>(() => readJson(PROFILES_KEY, []));
   const [settings, setSettings] = useState<UserSettings>(() =>
     readJson<UserSettings>(SETTINGS_KEY, defaultSettings)
   );
+
   const [authName, setAuthName] = useState("");
   const [authError, setAuthError] = useState("");
-  const [lobbyNotice, setLobbyNotice] = useState("");
 
   const [roomCode, setRoomCode] = useState("");
+  const [mediaTitle, setMediaTitle] = useState("");
   const [watchUrl, setWatchUrl] = useState(SAMPLE_VIDEO);
   const [rightsConfirmed, setRightsConfirmed] = useState(false);
   const [roomState, setRoomState] = useState<RoomState | null>(null);
   const [joinPending, setJoinPending] = useState(false);
+  const [rulesAccepted, setRulesAccepted] = useState(false);
 
   const [chatInput, setChatInput] = useState("");
   const [chatError, setChatError] = useState("");
@@ -183,10 +255,21 @@ function App() {
   const [reportDetails, setReportDetails] = useState("");
   const [reportSubmitted, setReportSubmitted] = useState(false);
 
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabKey>("chat");
+  const [achievement, setAchievement] = useState<{ title: string; body: string } | null>(null);
+  const [notice, setNotice] = useState("");
+
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const lastHostPublishRef = useRef(0);
   const lastGuestChatRef = useRef(0);
   const noticeTimeoutRef = useRef<number | null>(null);
+  const achievementTimeoutRef = useRef<number | null>(null);
+
+  const selectedService = useMemo(
+    () => getServiceById(selectedServiceId || session?.serviceId),
+    [selectedServiceId, session?.serviceId]
+  );
 
   const username = session?.username ?? "";
   const normalizedRoomCode = roomCode.trim().toUpperCase();
@@ -194,15 +277,10 @@ function App() {
   const partyLive = !!roomState;
   const isHost = !!roomState && roomState.leader === username;
 
-  const watchHostStatus = useMemo(() => {
-    if (!watchUrl.trim()) return "none";
-    try {
-      const parsed = new URL(watchUrl);
-      return allowedHosts.includes(parsed.hostname) ? "allowed" : "blocked";
-    } catch {
-      return "invalid";
-    }
-  }, [watchUrl]);
+  const tabs = useMemo<TabKey[]>(
+    () => (isHost ? ["chat", "participants", "tools"] : ["chat", "participants"]),
+    [isHost]
+  );
 
   const syncHealth = useMemo(() => {
     if (!roomState) return "Waiting for launch";
@@ -215,8 +293,53 @@ function App() {
     [fireReactions, heartReactions, wowReactions, chatMessages.length]
   );
 
+  const effectiveService = useMemo(
+    () => getServiceById(roomState?.serviceId || selectedService.id),
+    [roomState?.serviceId, selectedService.id]
+  );
+
+  const inAppVideoUrl = useMemo(() => {
+    if (!roomState) return SAMPLE_VIDEO;
+    if (effectiveService.externalOnly) return SAMPLE_VIDEO;
+    return roomState.mediaUrl || SAMPLE_VIDEO;
+  }, [effectiveService.externalOnly, roomState]);
+
+  const participantList = useMemo(() => {
+    if (!roomState) return participantProfiles.map((entry) => ({ ...entry, role: "viewer" }));
+    const approved = roomState.approvedUsers.map((entry) => ({
+      name: entry,
+      mood: "focus",
+      role: entry === roomState.leader ? "host" : "viewer"
+    }));
+    const merged = [...participantProfiles.map((entry) => ({ ...entry, role: "viewer" })), ...approved];
+    const dedup = Array.from(new Map(merged.map((entry) => [entry.name.toLowerCase(), entry])).values());
+    return dedup;
+  }, [roomState]);
+
+  const allowedDomainStatus = useMemo(() => {
+    if (!watchUrl.trim()) return "none";
+    try {
+      const parsed = new URL(watchUrl);
+      if (selectedService.domains.includes(parsed.hostname)) return "allowed";
+      return "blocked";
+    } catch {
+      return "invalid";
+    }
+  }, [selectedService.domains, watchUrl]);
+
+  const launchDisabled =
+    !session || !rightsConfirmed || allowedDomainStatus === "invalid" || !normalizedRoomCode;
+
+  const flashNotice = useCallback((message: string) => {
+    setNotice(message);
+    if (noticeTimeoutRef.current !== null) {
+      window.clearTimeout(noticeTimeoutRef.current);
+    }
+    noticeTimeoutRef.current = window.setTimeout(() => setNotice(""), 2200);
+  }, []);
+
   const pushLog = useCallback((event: string) => {
-    setModerationLog((current) => [event, ...current].slice(0, 14));
+    setModerationLog((current) => [event, ...current].slice(0, 18));
   }, []);
 
   const appendChat = useCallback((text: string, own: boolean) => {
@@ -232,22 +355,8 @@ function App() {
           own,
           at: getClock()
         }
-      ].slice(-70)
+      ].slice(-90)
     );
-  }, []);
-
-  const persistSession = useCallback((next: Session | null) => {
-    setSession(next);
-    if (next) writeJson(SESSION_KEY, next);
-    else localStorage.removeItem(SESSION_KEY);
-  }, []);
-
-  const patchSettings = useCallback((next: Partial<UserSettings>) => {
-    setSettings((current) => {
-      const updated = { ...current, ...next };
-      writeJson(SETTINGS_KEY, updated);
-      return updated;
-    });
   }, []);
 
   const rememberProfile = useCallback((profile: string) => {
@@ -258,14 +367,6 @@ function App() {
     });
   }, []);
 
-  const flashLobbyNotice = useCallback((message: string) => {
-    setLobbyNotice(message);
-    if (noticeTimeoutRef.current !== null) {
-      window.clearTimeout(noticeTimeoutRef.current);
-    }
-    noticeTimeoutRef.current = window.setTimeout(() => setLobbyNotice(""), 2200);
-  }, []);
-
   const rememberRoom = useCallback(
     (nextRoomCode: string) => {
       if (!username) return;
@@ -273,6 +374,33 @@ function App() {
     },
     [username]
   );
+
+  const persistServiceChoice = useCallback(
+    (serviceId: string) => {
+      localStorage.setItem(SERVICE_KEY, serviceId);
+      setSelectedServiceId(serviceId);
+      if (session) {
+        const updated = { ...session, serviceId };
+        setSession(updated);
+        writeJson(SESSION_KEY, updated);
+      }
+    },
+    [session]
+  );
+
+  const patchSettings = useCallback((next: Partial<UserSettings>) => {
+    setSettings((current) => {
+      const updated = { ...current, ...next };
+      writeJson(SETTINGS_KEY, updated);
+      return updated;
+    });
+  }, []);
+
+  const persistSession = useCallback((next: Session | null) => {
+    setSession(next);
+    if (next) writeJson(SESSION_KEY, next);
+    else localStorage.removeItem(SESSION_KEY);
+  }, []);
 
   const publishRoomState = useCallback(
     (next: Partial<RoomState>) => {
@@ -286,59 +414,103 @@ function App() {
     [roomKey]
   );
 
+  const unlockAchievement = useCallback((title: string, body: string) => {
+    setAchievement({ title, body });
+    if (achievementTimeoutRef.current !== null) window.clearTimeout(achievementTimeoutRef.current);
+    achievementTimeoutRef.current = window.setTimeout(() => setAchievement(null), 2800);
+  }, []);
+
+  const chooseService = useCallback((serviceId: string) => {
+    persistServiceChoice(serviceId);
+    setAuthError("");
+  }, [persistServiceChoice]);
+
   const handleAuthSubmit = useCallback(
     (event: FormEvent) => {
       event.preventDefault();
+      if (!selectedService.id) return;
       const clean = authName.trim();
       const generated = `Guest${Math.floor(Math.random() * 900 + 100)}`;
       const nextName = clean || generated;
-      if (nextName.length < 2) {
-        setAuthError("Name is too short.");
-        return;
-      }
-      persistSession({ username: nextName });
+      persistSession({ username: nextName, serviceId: selectedService.id });
       rememberProfile(nextName);
       setAuthError("");
       setAuthName("");
+      unlockAchievement("Profile Ready", `${nextName} connected to ${selectedService.name}`);
     },
-    [authName, persistSession, rememberProfile]
+    [authName, persistSession, rememberProfile, selectedService.id, selectedService.name, unlockAchievement]
   );
 
   const useQuickGuest = useCallback(() => {
+    if (!selectedService.id) return;
     const name = `Guest${Math.floor(Math.random() * 900 + 100)}`;
-    persistSession({ username: name });
+    persistSession({ username: name, serviceId: selectedService.id });
     rememberProfile(name);
     setAuthError("");
     setAuthName("");
-  }, [persistSession, rememberProfile]);
+    unlockAchievement("Quick Entry", `${name} joined instantly`);
+  }, [persistSession, rememberProfile, selectedService.id, unlockAchievement]);
 
   const loginRecentProfile = useCallback(
     (profile: string) => {
-      persistSession({ username: profile });
+      if (!selectedService.id) return;
+      persistSession({ username: profile, serviceId: selectedService.id });
       rememberProfile(profile);
       setAuthError("");
       setAuthName("");
     },
-    [persistSession, rememberProfile]
+    [persistSession, rememberProfile, selectedService.id]
   );
 
   const generateRoomCode = useCallback(() => {
-    const generated = `PULSE${Math.floor(Math.random() * 900 + 100)}`;
-    setRoomCode(generated);
+    setRoomCode(`PULSE${Math.floor(Math.random() * 900 + 100)}`);
   }, []);
 
+  const copyRoomCode = useCallback(() => {
+    if (!normalizedRoomCode) {
+      flashNotice("Enter or generate a room code first.");
+      return;
+    }
+    if (!navigator.clipboard?.writeText) {
+      flashNotice("Clipboard unavailable on this device.");
+      return;
+    }
+    void navigator.clipboard
+      .writeText(normalizedRoomCode)
+      .then(() => flashNotice("Room code copied."))
+      .catch(() => flashNotice("Copy failed. Please copy manually."));
+  }, [flashNotice, normalizedRoomCode]);
+
+  const copyInvite = useCallback(() => {
+    if (!normalizedRoomCode) {
+      flashNotice("Generate a room code first.");
+      return;
+    }
+    if (!navigator.clipboard?.writeText) {
+      flashNotice("Clipboard unavailable on this device.");
+      return;
+    }
+    const message = `Join my ${selectedService.name} watch party in KinoPulse. Room: ${normalizedRoomCode}`;
+    void navigator.clipboard
+      .writeText(message)
+      .then(() => flashNotice("Invite message copied."))
+      .catch(() => flashNotice("Copy failed. Please copy manually."));
+  }, [flashNotice, normalizedRoomCode, selectedService.name]);
+
   const handleLaunchRoom = useCallback(() => {
-    if (!username || !roomKey) return;
+    if (!session || !roomKey) return;
     const state: RoomState = {
       roomCode: normalizedRoomCode,
-      leader: username,
-      videoUrl: watchUrl.trim() || SAMPLE_VIDEO,
+      leader: session.username,
+      serviceId: selectedService.id,
+      mediaTitle: mediaTitle.trim() || `${selectedService.name} Watch Party`,
+      mediaUrl: watchUrl.trim() || SAMPLE_VIDEO,
       playing: true,
       playhead: 0,
       updatedAt: Date.now(),
       privateLobby: true,
       locked: false,
-      approvedUsers: [username],
+      approvedUsers: [session.username],
       joinQueue: [],
       slowModeSec: 0,
       chatLocked: false,
@@ -347,28 +519,50 @@ function App() {
     writeJson(roomKey, state);
     setRoomState(state);
     setJoinPending(false);
+    setRulesAccepted(true);
     rememberRoom(state.roomCode);
     appendChat("Room is now live. Everyone syncing in...", false);
     pushLog(`Room ${state.roomCode} launched`);
-    setAuthError("");
-  }, [appendChat, normalizedRoomCode, pushLog, rememberRoom, roomKey, username, watchUrl]);
+    if (!localStorage.getItem(ACH_FIRST_ROOM_KEY)) {
+      localStorage.setItem(ACH_FIRST_ROOM_KEY, "1");
+      unlockAchievement("Achievement Unlocked", "Launched your first public-capable lobby");
+    }
+  }, [
+    appendChat,
+    mediaTitle,
+    normalizedRoomCode,
+    pushLog,
+    rememberRoom,
+    roomKey,
+    selectedService.id,
+    selectedService.name,
+    session,
+    unlockAchievement,
+    watchUrl
+  ]);
 
   const handleJoinRoom = useCallback(() => {
-    if (!username || !roomKey) return;
+    if (!session || !roomKey) return;
     const loaded = normalizeRoomState(readJson<RoomState | null>(roomKey, null));
     if (!loaded) {
-      setAuthError("No room found with that code yet.");
+      setAuthError("No room found with that code.");
       return;
     }
 
+    if (loaded.serviceId !== selectedService.id) {
+      persistServiceChoice(loaded.serviceId);
+      setAuthError(`Switched to ${getServiceById(loaded.serviceId).name} for this room.`);
+    }
+
     const canEnter =
-      loaded.leader === username ||
-      loaded.approvedUsers.includes(username) ||
+      loaded.leader === session.username ||
+      loaded.approvedUsers.includes(session.username) ||
       !loaded.privateLobby;
 
     if (canEnter) {
-      setWatchUrl(loaded.videoUrl);
       setRoomState(loaded);
+      setWatchUrl(loaded.mediaUrl);
+      setMediaTitle(loaded.mediaTitle);
       setJoinPending(false);
       setAuthError("");
       rememberRoom(loaded.roomCode);
@@ -382,17 +576,31 @@ function App() {
       return;
     }
 
-    if (!loaded.joinQueue.includes(username)) {
+    if (!loaded.joinQueue.includes(session.username)) {
       const updated = {
         ...loaded,
-        joinQueue: [...loaded.joinQueue, username],
+        joinQueue: [...loaded.joinQueue, session.username],
         updatedAt: Date.now()
       };
       writeJson(roomKey, updated);
     }
+
     setJoinPending(true);
     setAuthError("Join request sent. Waiting for host approval.");
-  }, [pushLog, rememberRoom, roomKey, username]);
+  }, [
+    persistServiceChoice,
+    pushLog,
+    rememberRoom,
+    roomKey,
+    selectedService.id,
+    session
+  ]);
+
+  const acceptRules = useCallback(() => {
+    if (!roomState || !session) return;
+    localStorage.setItem(rulesKey(roomState.roomCode, session.username), "1");
+    setRulesAccepted(true);
+  }, [roomState, session]);
 
   const togglePrivateLobby = useCallback(() => {
     if (!isHost || !roomState) return;
@@ -412,13 +620,28 @@ function App() {
     pushLog(roomState.locked ? "Lobby unlocked" : "Lobby locked");
   }, [isHost, publishRoomState, pushLog, roomState]);
 
+  const toggleChatLock = useCallback(() => {
+    if (!isHost || !roomState) return;
+    publishRoomState({ chatLocked: !roomState.chatLocked });
+    pushLog(roomState.chatLocked ? "Chat unlocked" : "Chat locked");
+  }, [isHost, publishRoomState, pushLog, roomState]);
+
+  const setSlowMode = useCallback(
+    (value: number) => {
+      if (!isHost || !roomState) return;
+      publishRoomState({ slowModeSec: value });
+      pushLog(value === 0 ? "Slow mode disabled" : `Slow mode set to ${value}s`);
+    },
+    [isHost, publishRoomState, pushLog, roomState]
+  );
+
   const approveJoinRequest = useCallback(
     (user: string) => {
       if (!isHost || !roomState) return;
       const approvedUsers = Array.from(new Set([...roomState.approvedUsers, user]));
       const joinQueue = roomState.joinQueue.filter((entry) => entry !== user);
       publishRoomState({ approvedUsers, joinQueue });
-      pushLog(`Approved @${user} to join private lobby`);
+      pushLog(`Approved @${user}`);
     },
     [isHost, publishRoomState, pushLog, roomState]
   );
@@ -428,7 +651,7 @@ function App() {
       if (!isHost || !roomState) return;
       const joinQueue = roomState.joinQueue.filter((entry) => entry !== user);
       publishRoomState({ joinQueue });
-      pushLog(`Denied @${user} join request`);
+      pushLog(`Denied @${user}`);
     },
     [isHost, publishRoomState, pushLog, roomState]
   );
@@ -437,19 +660,13 @@ function App() {
     if (!isHost || !roomState || roomState.joinQueue.length === 0) return;
     const approvedUsers = Array.from(new Set([...roomState.approvedUsers, ...roomState.joinQueue]));
     publishRoomState({ approvedUsers, joinQueue: [] });
-    pushLog(`Approved all pending users (${roomState.joinQueue.length})`);
+    pushLog(`Approved all (${roomState.joinQueue.length})`);
   }, [isHost, publishRoomState, pushLog, roomState]);
 
   const denyAllJoinRequests = useCallback(() => {
     if (!isHost || !roomState || roomState.joinQueue.length === 0) return;
-    pushLog(`Denied all pending users (${roomState.joinQueue.length})`);
     publishRoomState({ joinQueue: [] });
-  }, [isHost, publishRoomState, pushLog, roomState]);
-
-  const toggleChatLock = useCallback(() => {
-    if (!isHost || !roomState) return;
-    publishRoomState({ chatLocked: !roomState.chatLocked });
-    pushLog(roomState.chatLocked ? "Chat unlocked" : "Chat locked");
+    pushLog(`Denied all (${roomState.joinQueue.length})`);
   }, [isHost, publishRoomState, pushLog, roomState]);
 
   const pauseForAll = useCallback(() => {
@@ -470,72 +687,36 @@ function App() {
   const restartForAll = useCallback(() => {
     if (!isHost || !roomState || !videoRef.current) return;
     videoRef.current.currentTime = 0;
-    publishRoomState({ playhead: 0, playing: true });
     const start = videoRef.current.play();
     if (start) start.catch(() => {});
-    pushLog("Host restarted playback from 00:00");
+    publishRoomState({ playhead: 0, playing: true });
+    pushLog("Host restarted from 00:00");
   }, [isHost, publishRoomState, pushLog, roomState]);
-
-  const setSlowMode = useCallback(
-    (value: number) => {
-      if (!isHost || !roomState) return;
-      publishRoomState({ slowModeSec: value });
-      pushLog(value === 0 ? "Slow mode disabled" : `Slow mode set to ${value}s`);
-    },
-    [isHost, publishRoomState, pushLog, roomState]
-  );
 
   const postAnnouncement = useCallback(() => {
     if (!isHost || !roomState) return;
     const clean = announcementDraft.trim();
     if (!clean) return;
     publishRoomState({ announcement: clean });
-    setAnnouncementDraft("");
     appendChat(`Host announcement: ${clean}`, false);
-    pushLog("Host announcement posted");
+    setAnnouncementDraft("");
+    pushLog("Announcement posted");
   }, [announcementDraft, appendChat, isHost, publishRoomState, pushLog, roomState]);
 
   const clearAnnouncement = useCallback(() => {
     if (!isHost || !roomState || !roomState.announcement) return;
     publishRoomState({ announcement: "" });
-    pushLog("Host announcement cleared");
+    pushLog("Announcement cleared");
   }, [isHost, publishRoomState, pushLog, roomState]);
-
-  const copyRoomCode = useCallback(() => {
-    if (!normalizedRoomCode) {
-      flashLobbyNotice("Enter or generate a room code first.");
-      return;
-    }
-    if (!navigator.clipboard?.writeText) {
-      flashLobbyNotice("Clipboard is unavailable on this device.");
-      return;
-    }
-    void navigator.clipboard
-      .writeText(normalizedRoomCode)
-      .then(() => flashLobbyNotice("Room code copied."))
-      .catch(() => flashLobbyNotice("Copy failed. Please copy manually."));
-  }, [flashLobbyNotice, normalizedRoomCode]);
-
-  const copyInviteMessage = useCallback(() => {
-    if (!normalizedRoomCode) {
-      flashLobbyNotice("Add a room code before sharing.");
-      return;
-    }
-    if (!navigator.clipboard?.writeText) {
-      flashLobbyNotice("Clipboard is unavailable on this device.");
-      return;
-    }
-    const invite = `Join my KinoPulse room ${normalizedRoomCode} and sync with me.`;
-    void navigator.clipboard
-      .writeText(invite)
-      .then(() => flashLobbyNotice("Invite message copied."))
-      .catch(() => flashLobbyNotice("Copy failed. Please copy manually."));
-  }, [flashLobbyNotice, normalizedRoomCode]);
 
   const handleSendChat = useCallback(
     (event: FormEvent) => {
       event.preventDefault();
       if (!chatInput.trim()) return;
+      if (!rulesAccepted && !isHost) {
+        setChatError("Please accept room rules to chat.");
+        return;
+      }
       if (roomState?.chatLocked && !isHost) {
         setChatError("Chat is temporarily locked by host.");
         return;
@@ -553,13 +734,11 @@ function App() {
       appendChat(chatInput, true);
       setChatInput("");
     },
-    [appendChat, chatInput, isHost, roomState]
+    [appendChat, chatInput, isHost, roomState, rulesAccepted]
   );
 
   const sendQuickSpark = useCallback(
-    (spark: string) => {
-      appendChat(spark, true);
-    },
+    (spark: string) => appendChat(spark, true),
     [appendChat]
   );
 
@@ -591,110 +770,22 @@ function App() {
     [pushLog, reportReason]
   );
 
-  useEffect(() => {
-    return () => {
-      if (noticeTimeoutRef.current !== null) {
-        window.clearTimeout(noticeTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!username) return;
-    rememberProfile(username);
-  }, [rememberProfile, username]);
-
-  useEffect(() => {
-    if (!username) return;
-    const lastRoom = localStorage.getItem(lastRoomKey(username));
-    if (!lastRoom) return;
-    setRoomCode((current) => current || lastRoom);
-    const loaded = normalizeRoomState(readJson<RoomState | null>(roomStorageKey(lastRoom), null));
-    if (!loaded) return;
-    if (loaded.leader === username || loaded.approvedUsers.includes(username) || !loaded.privateLobby) {
-      setWatchUrl(loaded.videoUrl);
-      setRoomState(loaded);
-    }
-  }, [username]);
-
-  useEffect(() => {
-    if (!roomKey) return;
-    const onStorage = (event: StorageEvent) => {
-      if (event.key !== roomKey || !event.newValue) return;
-      try {
-        const incoming = normalizeRoomState(JSON.parse(event.newValue) as RoomState);
-        if (!incoming) return;
-        setRoomState((current) => {
-          if (!current) return incoming;
-          if (incoming.updatedAt <= current.updatedAt) return current;
-          return incoming;
-        });
-      } catch {
-        return;
-      }
-    };
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
-  }, [roomKey]);
-
-  useEffect(() => {
-    if (!roomKey) return;
-    const poll = setInterval(() => {
-      const loaded = normalizeRoomState(readJson<RoomState | null>(roomKey, null));
-      if (!loaded) return;
-      if (joinPending && username && loaded.approvedUsers.includes(username)) {
-        setWatchUrl(loaded.videoUrl);
-        setRoomState(loaded);
-        setJoinPending(false);
-        setAuthError("");
-        rememberRoom(loaded.roomCode);
-        pushLog(`Host approved ${username}`);
-      }
-      setRoomState((current) => {
-        if (!current) return current;
-        if (loaded.updatedAt > current.updatedAt) return loaded;
-        return current;
-      });
-    }, 900);
-    return () => clearInterval(poll);
-  }, [joinPending, pushLog, rememberRoom, roomKey, username]);
-
-  useEffect(() => {
-    if (!roomState || !videoRef.current) return;
-    const video = videoRef.current;
-    if (!isHost) {
-      const expected =
-        roomState.playhead + (roomState.playing ? (Date.now() - roomState.updatedAt) / 1000 : 0);
-      if (Math.abs(video.currentTime - expected) > 0.7) {
-        video.currentTime = Math.max(0, expected);
-      }
-      if (roomState.playing) {
-        const start = video.play();
-        if (start) start.catch(() => {});
-      } else {
-        video.pause();
-      }
-      return;
-    }
-    if (roomState.playing) {
-      const start = video.play();
-      if (start) start.catch(() => {});
-    } else {
-      video.pause();
-    }
-  }, [isHost, roomState]);
+  const openOfficialMedia = useCallback(() => {
+    const targetUrl = roomState?.mediaUrl || watchUrl;
+    if (!targetUrl) return;
+    window.open(targetUrl, "_blank", "noopener,noreferrer");
+  }, [roomState?.mediaUrl, watchUrl]);
 
   const togglePlayback = useCallback(() => {
     if (!isHost || !roomState || !videoRef.current) return;
     const next = !roomState.playing;
-    const video = videoRef.current;
     if (next) {
-      const start = video.play();
+      const start = videoRef.current.play();
       if (start) start.catch(() => {});
     } else {
-      video.pause();
+      videoRef.current.pause();
     }
-    publishRoomState({ playing: next, playhead: video.currentTime });
+    publishRoomState({ playing: next, playhead: videoRef.current.currentTime });
   }, [isHost, publishRoomState, roomState]);
 
   const seekBy = useCallback(
@@ -723,6 +814,116 @@ function App() {
   }, [roomState]);
 
   useEffect(() => {
+    if (!selectedServiceId && session?.serviceId) {
+      setSelectedServiceId(session.serviceId);
+      localStorage.setItem(SERVICE_KEY, session.serviceId);
+    }
+  }, [selectedServiceId, session?.serviceId]);
+
+  useEffect(() => {
+    if (activeTab === "tools" && !isHost) setActiveTab("chat");
+  }, [activeTab, isHost]);
+
+  useEffect(() => {
+    if (!session || !roomState) {
+      setRulesAccepted(false);
+      return;
+    }
+    if (isHost) {
+      setRulesAccepted(true);
+      return;
+    }
+    setRulesAccepted(localStorage.getItem(rulesKey(roomState.roomCode, session.username)) === "1");
+  }, [isHost, roomState, session]);
+
+  useEffect(() => {
+    if (!username) return;
+    rememberProfile(username);
+  }, [rememberProfile, username]);
+
+  useEffect(() => {
+    if (!session) return;
+    const lastRoom = localStorage.getItem(lastRoomKey(session.username));
+    if (!lastRoom) return;
+    setRoomCode((current) => current || lastRoom);
+    const loaded = normalizeRoomState(readJson<RoomState | null>(roomStorageKey(lastRoom), null));
+    if (!loaded) return;
+    if (loaded.leader === session.username || loaded.approvedUsers.includes(session.username) || !loaded.privateLobby) {
+      setRoomState(loaded);
+      setWatchUrl(loaded.mediaUrl);
+      setMediaTitle(loaded.mediaTitle);
+    }
+  }, [session]);
+
+  useEffect(() => {
+    if (!roomKey) return;
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== roomKey || !event.newValue) return;
+      try {
+        const incoming = normalizeRoomState(JSON.parse(event.newValue) as RoomState);
+        if (!incoming) return;
+        setRoomState((current) => {
+          if (!current) return incoming;
+          if (incoming.updatedAt <= current.updatedAt) return current;
+          return incoming;
+        });
+      } catch {
+        return;
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [roomKey]);
+
+  useEffect(() => {
+    if (!roomKey) return;
+    const poll = setInterval(() => {
+      const loaded = normalizeRoomState(readJson<RoomState | null>(roomKey, null));
+      if (!loaded) return;
+      if (joinPending && session && loaded.approvedUsers.includes(session.username)) {
+        setRoomState(loaded);
+        setWatchUrl(loaded.mediaUrl);
+        setMediaTitle(loaded.mediaTitle);
+        setJoinPending(false);
+        setAuthError("");
+        rememberRoom(loaded.roomCode);
+        pushLog(`Host approved ${session.username}`);
+      }
+      setRoomState((current) => {
+        if (!current) return current;
+        if (loaded.updatedAt > current.updatedAt) return loaded;
+        return current;
+      });
+    }, 900);
+    return () => clearInterval(poll);
+  }, [joinPending, pushLog, rememberRoom, roomKey, session]);
+
+  useEffect(() => {
+    if (!roomState || !videoRef.current) return;
+    const video = videoRef.current;
+    if (!isHost) {
+      const expected =
+        roomState.playhead + (roomState.playing ? (Date.now() - roomState.updatedAt) / 1000 : 0);
+      if (Math.abs(video.currentTime - expected) > 0.7) {
+        video.currentTime = Math.max(0, expected);
+      }
+      if (roomState.playing) {
+        const start = video.play();
+        if (start) start.catch(() => {});
+      } else {
+        video.pause();
+      }
+      return;
+    }
+    if (roomState.playing) {
+      const start = video.play();
+      if (start) start.catch(() => {});
+    } else {
+      video.pause();
+    }
+  }, [isHost, roomState]);
+
+  useEffect(() => {
     if (!settings.autoSyncOnJoin || !roomState || isHost || !videoRef.current) return;
     const timer = window.setTimeout(() => {
       if (!videoRef.current) return;
@@ -733,23 +934,58 @@ function App() {
     return () => window.clearTimeout(timer);
   }, [isHost, roomState, settings.autoSyncOnJoin]);
 
-  const launchDisabled = !username || !rightsConfirmed || watchHostStatus !== "allowed" || !roomKey;
+  useEffect(() => {
+    return () => {
+      if (noticeTimeoutRef.current !== null) window.clearTimeout(noticeTimeoutRef.current);
+      if (achievementTimeoutRef.current !== null) window.clearTimeout(achievementTimeoutRef.current);
+    };
+  }, []);
+
+  if (!selectedServiceId) {
+    return (
+      <main className="service-root">
+        <section className="service-card">
+          <h1>Choose your streaming host</h1>
+          <p className="subtle">
+            Pick the service first. Authentication starts right after this step.
+          </p>
+          <div className="service-grid">
+            {serviceCatalog.map((service) => (
+              <button
+                key={service.id}
+                type="button"
+                className="service-option"
+                onClick={() => chooseService(service.id)}
+                style={{ borderColor: `${service.accent}66` }}
+              >
+                <span className="service-tag" style={{ backgroundColor: service.accent }}>
+                  {service.tag}
+                </span>
+                <strong>{service.name}</strong>
+                <span>{service.legalHint}</span>
+              </button>
+            ))}
+          </div>
+          <p className="note">
+            Industry pattern: each participant uses their own service account; no rebroadcasting.
+          </p>
+        </section>
+      </main>
+    );
+  }
 
   if (!session) {
     return (
       <main className="auth-root">
         <section className="auth-card">
           <h1>KinoPulse Rooms</h1>
-          <p className="subtle">Type a name or tap once to continue instantly.</p>
+          <p className="subtle">
+            Selected: <strong>{selectedService.name}</strong>. Type a name or continue instantly.
+          </p>
           {recentProfiles.length > 0 && (
             <div className="quick-profiles">
               {recentProfiles.map((profile) => (
-                <button
-                  key={profile}
-                  type="button"
-                  className="profile-pill"
-                  onClick={() => loginRecentProfile(profile)}
-                >
+                <button key={profile} type="button" className="profile-pill" onClick={() => loginRecentProfile(profile)}>
                   {profile}
                 </button>
               ))}
@@ -770,6 +1006,9 @@ function App() {
               <button type="button" onClick={useQuickGuest}>
                 Quick guest
               </button>
+              <button type="button" onClick={() => setSelectedServiceId(null)}>
+                Change service
+              </button>
             </div>
           </form>
         </section>
@@ -777,203 +1016,401 @@ function App() {
     );
   }
 
+  const RoomComposer = (
+    <section className="panel room-composer">
+      <h2>Quick lobby</h2>
+      <p className="subtle">
+        Host: <strong>{selectedService.name}</strong> • {selectedService.legalHint}
+      </p>
+      <label>
+        Room code
+        <input
+          value={roomCode}
+          onChange={(event) => setRoomCode(event.target.value.toUpperCase())}
+          placeholder="PULSE901"
+        />
+      </label>
+      <div className="button-row">
+        <button type="button" onClick={generateRoomCode}>
+          Generate code
+        </button>
+        <button type="button" onClick={copyRoomCode}>
+          Copy code
+        </button>
+        <button type="button" onClick={copyInvite}>
+          Copy invite
+        </button>
+      </div>
+      <label>
+        Session title
+        <input
+          value={mediaTitle}
+          onChange={(event) => setMediaTitle(event.target.value)}
+          placeholder={`${selectedService.name} watch party`}
+        />
+      </label>
+      <label>
+        Watch link
+        <input
+          value={watchUrl}
+          onChange={(event) => setWatchUrl(event.target.value)}
+          placeholder={`https://${selectedService.domains[0]}`}
+        />
+      </label>
+      {allowedDomainStatus === "allowed" && <p className="ok">Service domain validated.</p>}
+      {allowedDomainStatus === "blocked" && (
+        <p className="warn">Domain differs from selected service. Verify legal rights before launch.</p>
+      )}
+      {allowedDomainStatus === "invalid" && <p className="warn">Invalid URL. Use full https:// link.</p>}
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={rightsConfirmed}
+          onChange={(event) => setRightsConfirmed(event.target.checked)}
+        />
+        I confirm I have rights or permission to share this content in the room.
+      </label>
+      {joinPending && <p className="ok">Join request queued. Host approval will auto-connect you.</p>}
+      {authError && <p className="warn">{authError}</p>}
+      {notice && <p className="ok">{notice}</p>}
+      <div className="button-row">
+        <button disabled={launchDisabled} type="button" onClick={handleLaunchRoom}>
+          Launch private room
+        </button>
+        <button type="button" onClick={handleJoinRoom}>
+          Join room
+        </button>
+        <button type="button" onClick={handleJoinRoom} disabled={!roomKey}>
+          One-tap rejoin
+        </button>
+      </div>
+    </section>
+  );
+
+  const SettingsSheet = settingsOpen ? (
+    <div className="sheet-backdrop" onClick={() => setSettingsOpen(false)}>
+      <section className="sheet" onClick={(event) => event.stopPropagation()}>
+        <header className="sheet-head">
+          <h3>Room settings</h3>
+          <button type="button" onClick={() => setSettingsOpen(false)}>
+            Close
+          </button>
+        </header>
+        <div className="sheet-content">
+          <section className="panel">
+            <h3>Profile</h3>
+            <p className="subtle">
+              Logged in as <strong>{username}</strong>
+            </p>
+            <div className="button-row">
+              <button type="button" onClick={() => persistSession(null)}>
+                Switch profile
+              </button>
+            </div>
+          </section>
+
+          <section className="panel">
+            <h3>Streaming host</h3>
+            <div className="service-chip-row">
+              {serviceCatalog.map((service) => (
+                <button
+                  key={service.id}
+                  type="button"
+                  className={`service-chip ${selectedService.id === service.id ? "active" : ""}`}
+                  onClick={() => persistServiceChoice(service.id)}
+                >
+                  {service.name}
+                </button>
+              ))}
+            </div>
+          </section>
+
+          {RoomComposer}
+
+          <section className="panel legal">
+            <h3>Legal hub</h3>
+            <p>
+              Keep these pages public and linked in Play Console:
+              <a href="/legal/privacy.html" target="_blank" rel="noreferrer">
+                Privacy
+              </a>
+              <a href="/legal/terms.html" target="_blank" rel="noreferrer">
+                Terms
+              </a>
+              <a href="/legal/copyright.html" target="_blank" rel="noreferrer">
+                Copyright policy
+              </a>
+            </p>
+            <p className="note">Validate policies with legal counsel before production launch.</p>
+          </section>
+
+          <section className="panel">
+            <h3>Safety activity log</h3>
+            <div className="setting-grid">
+              <label className="setting-item">
+                <input
+                  type="checkbox"
+                  checked={settings.compactChat}
+                  onChange={(event) => patchSettings({ compactChat: event.target.checked })}
+                />
+                Compact chat bubbles
+              </label>
+              <label className="setting-item">
+                <input
+                  type="checkbox"
+                  checked={settings.reduceMotion}
+                  onChange={(event) => patchSettings({ reduceMotion: event.target.checked })}
+                />
+                Reduce motion effects
+              </label>
+              <label className="setting-item">
+                <input
+                  type="checkbox"
+                  checked={settings.autoSyncOnJoin}
+                  onChange={(event) => patchSettings({ autoSyncOnJoin: event.target.checked })}
+                />
+                Auto-sync immediately after joining
+              </label>
+            </div>
+            <div className="chat-log">
+              {moderationLog.map((event, index) => (
+                <p key={`${event}-${index}`}>{event}</p>
+              ))}
+            </div>
+          </section>
+        </div>
+      </section>
+    </div>
+  ) : null;
+
+  if (!partyLive) {
+    return (
+      <main className={`app app-pre-room ${settings.reduceMotion ? "reduce-motion" : ""}`}>
+        <div className="ambient ambient-a" />
+        <div className="ambient ambient-b" />
+        <section className="card pre-room-card">
+          <header className="hero">
+            <div className="hero-topline">
+              <p className="eyebrow">KinoSpolu Labs • Pulse Social</p>
+              <span className="hero-badge">Auto-login active for {username}</span>
+            </div>
+            <h1>KinoPulse Rooms</h1>
+            <p className="lead">
+              Pre-room mode keeps things simple: pick code, validate rights, and launch.
+            </p>
+            <div className="status-row">
+              <span className="chip chip-live">Ready to launch</span>
+              <span className="chip">Service: {selectedService.name}</span>
+            </div>
+          </header>
+          <div className="pre-room-actions">
+            <button type="button" onClick={() => setSettingsOpen(true)}>
+              Open settings
+            </button>
+            <button type="button" onClick={() => persistSession(null)}>
+              Switch profile
+            </button>
+          </div>
+          {RoomComposer}
+        </section>
+        {SettingsSheet}
+        {achievement && (
+          <aside className="achievement-pop" role="status" aria-live="polite">
+            <p className="achievement-title">{achievement.title}</p>
+            <p className="achievement-body">{achievement.body}</p>
+          </aside>
+        )}
+      </main>
+    );
+  }
+
   return (
-    <main className={`app ${settings.reduceMotion ? "reduce-motion" : ""}`}>
+    <main className={`app app-room ${settings.reduceMotion ? "reduce-motion" : ""}`}>
       <div className="ambient ambient-a" />
       <div className="ambient ambient-b" />
-      <section className="card">
-        <header className="hero">
+      <section className="room-shell">
+        <header className="room-header">
           <div className="hero-topline">
             <p className="eyebrow">KinoSpolu Labs • Pulse Social</p>
             <span className="hero-badge">Auto-login active for {username}</span>
           </div>
           <h1>KinoPulse Rooms</h1>
-          <p className="lead">Fast private watch parties with host-controlled sync and moderation.</p>
           <div className="status-row">
-            <span className="chip chip-live">{partyLive ? "Room active" : "Ready to launch"}</span>
+            <span className="chip chip-live">Room active</span>
             <span className="chip chip-safe">{syncHealth}</span>
             <span className="chip">Engagement: {engagementScore}</span>
-            <span className="chip">Role: {isHost ? "Host" : "Guest"}</span>
-            {roomState && <span className="chip">{roomState.privateLobby ? "Private lobby" : "Open lobby"}</span>}
-            {roomState?.chatLocked && <span className="chip">Chat locked</span>}
-            {roomState?.slowModeSec ? <span className="chip">Slow mode {roomState.slowModeSec}s</span> : null}
+            <span className="chip">Role: {isHost ? "Host" : "Viewer"}</span>
+            <span className="chip">{roomState.privateLobby ? "Private lobby" : "Public lobby"}</span>
+            {roomState.chatLocked && <span className="chip">Chat locked</span>}
+            {roomState.slowModeSec > 0 && <span className="chip">Slow mode {roomState.slowModeSec}s</span>}
           </div>
-          {roomState?.announcement && <p className="announcement-banner">📣 {roomState.announcement}</p>}
-          <div className="button-row">
+          {roomState.announcement && <p className="announcement-banner">📣 {roomState.announcement}</p>}
+          <div className="header-actions">
+            <button type="button" onClick={() => setSettingsOpen(true)}>
+              Settings
+            </button>
             <button type="button" onClick={() => persistSession(null)}>
               Switch profile
             </button>
           </div>
         </header>
 
-        <div className="layout layout-top">
-          <section className="panel lobby-panel">
-            <h2>Quick lobby</h2>
-            <p className="subtle">Create or join with one code. Private mode starts enabled.</p>
-            <label>
-              Room code
-              <input
-                value={roomCode}
-                onChange={(event) => setRoomCode(event.target.value.toUpperCase())}
-                placeholder="PULSE901"
-              />
-            </label>
-            <div className="button-row">
-              <button type="button" onClick={generateRoomCode}>
-                Generate code
-              </button>
-            </div>
-            <div className="copy-row">
-              <button type="button" onClick={copyRoomCode}>
-                Copy code
-              </button>
-              <button type="button" onClick={copyInviteMessage}>
-                Copy invite
-              </button>
-            </div>
-            {lobbyNotice && <p className="ok">{lobbyNotice}</p>}
-            <label>
-              Watch link
-              <input
-                value={watchUrl}
-                onChange={(event) => setWatchUrl(event.target.value)}
-                placeholder={SAMPLE_VIDEO}
-              />
-            </label>
-            {watchHostStatus === "allowed" && <p className="ok">Sync-ready media source detected.</p>}
-            {watchHostStatus === "blocked" && (
-              <p className="warn">Host blocked in this mode. Keep provider allowlist strict.</p>
-            )}
-            {watchHostStatus === "invalid" && (
-              <p className="warn">Invalid URL format. Use full https:// provider link.</p>
-            )}
-            <label className="check">
-              <input
-                type="checkbox"
-                checked={rightsConfirmed}
-                onChange={(event) => setRightsConfirmed(event.target.checked)}
-              />
-              I confirm I have rights or permission to share this content in the room.
-            </label>
-            {joinPending && <p className="ok">Join request queued. Host approval will auto-connect you.</p>}
-            {authError && <p className="warn">{authError}</p>}
-            <div className="button-row">
-              <button disabled={launchDisabled} type="button" onClick={handleLaunchRoom}>
-                Launch private room
-              </button>
-              <button type="button" onClick={handleJoinRoom}>
-                Join room
-              </button>
-              <button type="button" onClick={handleJoinRoom} disabled={!roomKey}>
-                One-tap rejoin
-              </button>
-            </div>
-          </section>
+        <section className="sticky-video">
+          <h2>Sync console</h2>
+          <div className="sync-metrics">
+            <MetricTile label="Playback" value={roomState.playing ? "Playing" : "Paused"} />
+            <MetricTile label="Playhead" value={formatTime(videoRef.current?.currentTime ?? roomState.playhead)} />
+            <MetricTile label="Latency" value="98ms" />
+          </div>
+          <video
+            className="video-stage"
+            ref={videoRef}
+            src={inAppVideoUrl}
+            preload="metadata"
+            onTimeUpdate={handleVideoTimeUpdate}
+          />
+          {effectiveService.externalOnly && (
+            <p className="subtle">
+              {effectiveService.name} plays via official account flow. Preview is synced companion video.
+            </p>
+          )}
+          <div className="button-row">
+            <button type="button" onClick={togglePlayback} disabled={!isHost}>
+              {roomState.playing ? "Pause (host)" : "Play (host)"}
+            </button>
+            <button type="button" onClick={() => seekBy(10)} disabled={!isHost}>
+              +10s host
+            </button>
+            <button type="button" onClick={() => seekBy(-10)} disabled={!isHost}>
+              -10s host
+            </button>
+            <button type="button" onClick={syncNow}>
+              Sync now
+            </button>
+            <button type="button" onClick={openOfficialMedia}>
+              Open {effectiveService.name}
+            </button>
+          </div>
+        </section>
 
-          <section className="panel sync-panel">
-            <h2>Sync console</h2>
-            <div className="sync-metrics">
-              <MetricTile label="Playback" value={roomState?.playing ? "Playing" : partyLive ? "Paused" : "Idle"} />
-              <MetricTile
-                label="Playhead"
-                value={formatTime(videoRef.current?.currentTime ?? roomState?.playhead ?? 0)}
-              />
-              <MetricTile label="Latency" value="98ms" />
-            </div>
-            <video
-              className="video-stage"
-              ref={videoRef}
-              src={roomState?.videoUrl || watchUrl || SAMPLE_VIDEO}
-              preload="metadata"
-              onTimeUpdate={handleVideoTimeUpdate}
-            />
-            <div className="button-row">
-              <button type="button" onClick={togglePlayback} disabled={!partyLive || !isHost}>
-                {roomState?.playing ? "Pause (host)" : "Play (host)"}
-              </button>
-              <button type="button" onClick={() => seekBy(10)} disabled={!partyLive || !isHost}>
-                +10s host
-              </button>
-              <button type="button" onClick={() => seekBy(-10)} disabled={!partyLive || !isHost}>
-                -10s host
-              </button>
-              <button type="button" onClick={syncNow} disabled={!partyLive}>
-                Sync now
-              </button>
-            </div>
-            <div className="presence-strip">
-              {participantProfiles.map((participant) => (
-                <span key={participant.name}>{participant.name}</span>
-              ))}
-            </div>
-            <p className="subtle">Host drives playback. Guests auto-follow shared room state.</p>
-          </section>
-        </div>
+        <section className="tab-stage">
+          {activeTab === "chat" && (
+            <section className="panel tab-panel">
+              <div className="panel-head">
+                <h2>Social lounge</h2>
+                <p className="subtle">Live room chat</p>
+              </div>
 
-        <div className="layout layout-bottom">
-          <section className="panel chat-panel">
-            <div className="panel-head">
-              <h2>Social lounge</h2>
-              <p className="subtle">Live room chat</p>
-            </div>
-            <div className="participants">
-              {participantProfiles.map((participant) => (
-                <span key={participant.name} className={`pill pill-${participant.mood}`}>
-                  {participant.name}
-                </span>
-              ))}
-            </div>
-            <div className={`chat-shell ${settings.compactChat ? "compact" : ""}`}>
-              {chatMessages.map((message) => (
-                <ChatBubble key={message.id} message={message} />
-              ))}
-            </div>
-            <div className="quick-row">
-              {quickSparkMessages.map((spark) => (
-                <button
-                  key={spark}
-                  type="button"
-                  className="quick"
-                  onClick={() => sendQuickSpark(spark)}
-                  disabled={!!roomState?.chatLocked && !isHost}
-                >
-                  {spark}
+              {!isHost && !rulesAccepted && (
+                <div className="rules-gate">
+                  <h3>Public room rules</h3>
+                  <ul>
+                    <li>No harassment, hate, or sexual content involving minors.</li>
+                    <li>No spam, doxxing, or violent threats.</li>
+                    <li>Respect copyright and platform policies.</li>
+                  </ul>
+                  <button type="button" onClick={acceptRules}>
+                    I agree
+                  </button>
+                </div>
+              )}
+
+              <div className="participants">
+                {participantProfiles.map((participant) => (
+                  <span key={participant.name} className={`pill pill-${participant.mood}`}>
+                    {participant.name}
+                  </span>
+                ))}
+              </div>
+              <div className={`chat-shell ${settings.compactChat ? "compact" : ""}`}>
+                {chatMessages.map((message) => (
+                  <ChatBubble key={message.id} message={message} />
+                ))}
+              </div>
+              <div className="quick-row">
+                {quickSparkMessages.map((spark) => (
+                  <button
+                    key={spark}
+                    type="button"
+                    className="quick"
+                    onClick={() => sendQuickSpark(spark)}
+                    disabled={(!rulesAccepted && !isHost) || (!!roomState.chatLocked && !isHost)}
+                  >
+                    {spark}
+                  </button>
+                ))}
+              </div>
+              <form className="inline-form" onSubmit={handleSendChat}>
+                <input
+                  value={chatInput}
+                  onChange={(event) => setChatInput(event.target.value)}
+                  placeholder="Drop a message..."
+                  disabled={(!rulesAccepted && !isHost) || (!!roomState.chatLocked && !isHost)}
+                />
+                <button type="submit" disabled={(!rulesAccepted && !isHost) || (!!roomState.chatLocked && !isHost)}>
+                  Send
                 </button>
-              ))}
-            </div>
-            <form className="inline-form" onSubmit={handleSendChat}>
-              <input
-                value={chatInput}
-                onChange={(event) => setChatInput(event.target.value)}
-                placeholder="Drop a message..."
-                disabled={!!roomState?.chatLocked && !isHost}
-              />
-              <button type="submit" disabled={!!roomState?.chatLocked && !isHost}>
-                Send
-              </button>
-            </form>
-            {chatError && <p className="warn">{chatError}</p>}
-            <div className="reactions">
-              <button type="button" onClick={() => setFireReactions((n) => n + 1)}>
-                🔥 {fireReactions}
-              </button>
-              <button type="button" onClick={() => setHeartReactions((n) => n + 1)}>
-                ❤️ {heartReactions}
-              </button>
-              <button type="button" onClick={() => setWowReactions((n) => n + 1)}>
-                ⚡ {wowReactions}
-              </button>
-            </div>
-          </section>
+              </form>
+              {chatError && <p className="warn">{chatError}</p>}
+              <div className="reactions">
+                <button type="button" onClick={() => setFireReactions((n) => n + 1)}>
+                  🔥 {fireReactions}
+                </button>
+                <button type="button" onClick={() => setHeartReactions((n) => n + 1)}>
+                  ❤️ {heartReactions}
+                </button>
+                <button type="button" onClick={() => setWowReactions((n) => n + 1)}>
+                  ⚡ {wowReactions}
+                </button>
+              </div>
+            </section>
+          )}
 
-          <section className="panel">
-            <h2>Trust and moderation</h2>
-            <ul>
-              <li>Host-only playback controls and private lobby approvals.</li>
-              <li>Report flow is available for harassment, hate, sexual, or copyright abuse.</li>
-              <li>Fast moderation actions include mute, remove, and blocklist.</li>
-            </ul>
-            {roomState && isHost && (
+          {activeTab === "participants" && (
+            <section className="panel tab-panel">
+              <div className="panel-head">
+                <h2>Participants</h2>
+                <p className="subtle">Roles, queue, and sync status</p>
+              </div>
+              <div className="participant-list">
+                {participantList.map((entry) => (
+                  <article key={entry.name} className="participant-item">
+                    <div>
+                      <strong>{entry.name}</strong>
+                      <p className="subtle">{entry.role === "host" ? "Host" : "Viewer"}</p>
+                    </div>
+                    <span className="chip">{entry.name === username ? "You" : "Synced"}</span>
+                  </article>
+                ))}
+              </div>
+              {roomState.joinQueue.length > 0 && (
+                <div className="queue-list">
+                  <h3>Pending join requests</h3>
+                  {roomState.joinQueue.map((requestUser) => (
+                    <div key={requestUser} className="queue-item">
+                      <span>@{requestUser}</span>
+                      {isHost ? (
+                        <div className="queue-actions">
+                          <button type="button" onClick={() => approveJoinRequest(requestUser)}>
+                            Approve
+                          </button>
+                          <button type="button" onClick={() => denyJoinRequest(requestUser)}>
+                            Deny
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="subtle">Waiting for host</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
+
+          {activeTab === "tools" && isHost && (
+            <section className="panel tab-panel">
+              <h2>Host & moderation tools</h2>
               <section className="queue-box">
                 <h3>Private lobby controls</h3>
                 <p className="subtle">Host has full pause/play/restart authority for everyone in room.</p>
@@ -1025,138 +1462,109 @@ function App() {
                     Clear announcement
                   </button>
                 )}
-                {roomState.joinQueue.length === 0 ? (
-                  <p className="subtle">No pending join requests.</p>
-                ) : (
-                  <div className="queue-list">
-                    <div className="queue-row-actions">
-                      <button type="button" onClick={approveAllJoinRequests}>
-                        Approve all
-                      </button>
-                      <button type="button" onClick={denyAllJoinRequests}>
-                        Deny all
-                      </button>
-                    </div>
-                    {roomState.joinQueue.map((requestUser) => (
-                      <div key={requestUser} className="queue-item">
-                        <span>@{requestUser}</span>
-                        <div className="queue-actions">
-                          <button type="button" onClick={() => approveJoinRequest(requestUser)}>
-                            Approve
-                          </button>
-                          <button type="button" onClick={() => denyJoinRequest(requestUser)}>
-                            Deny
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                {roomState.joinQueue.length > 0 && (
+                  <div className="queue-row-actions">
+                    <button type="button" onClick={approveAllJoinRequests}>
+                      Approve all
+                    </button>
+                    <button type="button" onClick={denyAllJoinRequests}>
+                      Deny all
+                    </button>
                   </div>
                 )}
               </section>
-            )}
-            <div className="button-row">
-              <button type="button" onClick={() => runModAction("Mute user")}>
-                Mute user
-              </button>
-              <button type="button" onClick={() => runModAction("Remove user")}>
-                Remove user
-              </button>
-              <button type="button" onClick={() => runModAction("Freeze room")}>
-                Freeze room
-              </button>
-            </div>
-            <form className="inline-form" onSubmit={addBlockedUser}>
-              <input
-                value={blockedUser}
-                onChange={(event) => setBlockedUser(event.target.value)}
-                placeholder="Block user handle..."
-              />
-              <button type="submit">Block</button>
-            </form>
-            {blockedUsers.length > 0 && (
-              <p className="subtle">Blocked: {blockedUsers.map((u) => `@${u}`).join(", ")}</p>
-            )}
-            <form className="report" onSubmit={handleReport}>
-              <h3>Report abuse</h3>
-              <label>
-                Reason
-                <select value={reportReason} onChange={(event) => setReportReason(event.target.value)}>
-                  <option value="harassment">Harassment or bullying</option>
-                  <option value="hate">Hate or violent content</option>
-                  <option value="sexual">Sexual content involving minors</option>
-                  <option value="copyright">Copyright infringement</option>
-                </select>
-              </label>
-              <label>
-                Details
-                <textarea
-                  value={reportDetails}
-                  onChange={(event) => setReportDetails(event.target.value)}
-                  placeholder="Describe what happened and include room/user IDs."
-                />
-              </label>
-              <button type="submit">Submit report</button>
-              {reportSubmitted && (
-                <p className="ok">Report captured. Connect this form to backend moderation queue.</p>
-              )}
-            </form>
-          </section>
-        </div>
 
-        <div className="layout layout-bottom">
-          <section className="panel legal">
-            <h2>Legal hub</h2>
-            <p>
-              Keep these pages public and linked in Play Console:
-              <a href="/legal/privacy.html" target="_blank" rel="noreferrer">
-                Privacy
-              </a>
-              <a href="/legal/terms.html" target="_blank" rel="noreferrer">
-                Terms
-              </a>
-              <a href="/legal/copyright.html" target="_blank" rel="noreferrer">
-                Copyright policy
-              </a>
-            </p>
-            <p className="note">Validate policies with legal counsel before production launch.</p>
-          </section>
+              <section className="panel">
+                <h3>Trust and moderation</h3>
+                <ul>
+                  <li>Host-only playback controls and private lobby approvals.</li>
+                  <li>Report flow is available for harassment, hate, sexual, or copyright abuse.</li>
+                  <li>Fast moderation actions include mute, remove, and blocklist.</li>
+                </ul>
+                <div className="button-row">
+                  <button type="button" onClick={() => runModAction("Mute user")}>
+                    Mute user
+                  </button>
+                  <button type="button" onClick={() => runModAction("Remove user")}>
+                    Remove user
+                  </button>
+                  <button type="button" onClick={() => runModAction("Freeze room")}>
+                    Freeze room
+                  </button>
+                </div>
+                <form className="inline-form" onSubmit={addBlockedUser}>
+                  <input
+                    value={blockedUser}
+                    onChange={(event) => setBlockedUser(event.target.value)}
+                    placeholder="Block user handle..."
+                  />
+                  <button type="submit">Block</button>
+                </form>
+                {blockedUsers.length > 0 && (
+                  <p className="subtle">Blocked: {blockedUsers.map((u) => `@${u}`).join(", ")}</p>
+                )}
+                <form className="report" onSubmit={handleReport}>
+                  <h3>Report abuse</h3>
+                  <label>
+                    Reason
+                    <select value={reportReason} onChange={(event) => setReportReason(event.target.value)}>
+                      <option value="harassment">Harassment or bullying</option>
+                      <option value="hate">Hate or violent content</option>
+                      <option value="sexual">Sexual content involving minors</option>
+                      <option value="copyright">Copyright infringement</option>
+                    </select>
+                  </label>
+                  <label>
+                    Details
+                    <textarea
+                      value={reportDetails}
+                      onChange={(event) => setReportDetails(event.target.value)}
+                      placeholder="Describe what happened and include room/user IDs."
+                    />
+                  </label>
+                  <button type="submit">Submit report</button>
+                  {reportSubmitted && (
+                    <p className="ok">Report captured. Connect this form to backend moderation queue.</p>
+                  )}
+                </form>
+              </section>
+            </section>
+          )}
+        </section>
 
-          <section className="panel">
-            <h2>Safety activity log</h2>
-            <div className="setting-grid">
-              <label className="setting-item">
-                <input
-                  type="checkbox"
-                  checked={settings.compactChat}
-                  onChange={(event) => patchSettings({ compactChat: event.target.checked })}
-                />
-                Compact chat bubbles
-              </label>
-              <label className="setting-item">
-                <input
-                  type="checkbox"
-                  checked={settings.reduceMotion}
-                  onChange={(event) => patchSettings({ reduceMotion: event.target.checked })}
-                />
-                Reduce motion effects
-              </label>
-              <label className="setting-item">
-                <input
-                  type="checkbox"
-                  checked={settings.autoSyncOnJoin}
-                  onChange={(event) => patchSettings({ autoSyncOnJoin: event.target.checked })}
-                />
-                Auto-sync immediately after joining
-              </label>
-            </div>
-            <div className="chat-log">
-              {moderationLog.map((event, index) => (
-                <p key={`${event}-${index}`}>{event}</p>
-              ))}
-            </div>
-          </section>
-        </div>
+        <nav className="bottom-nav">
+          <button
+            type="button"
+            className={activeTab === "chat" ? "active" : ""}
+            onClick={() => setActiveTab("chat")}
+          >
+            Chat
+          </button>
+          <button
+            type="button"
+            className={activeTab === "participants" ? "active" : ""}
+            onClick={() => setActiveTab("participants")}
+          >
+            Participants
+          </button>
+          {isHost && (
+            <button
+              type="button"
+              className={activeTab === "tools" ? "active" : ""}
+              onClick={() => setActiveTab("tools")}
+            >
+              Host tools
+            </button>
+          )}
+        </nav>
       </section>
+      {SettingsSheet}
+      {achievement && (
+        <aside className="achievement-pop" role="status" aria-live="polite">
+          <p className="achievement-title">{achievement.title}</p>
+          <p className="achievement-body">{achievement.body}</p>
+        </aside>
+      )}
     </main>
   );
 }
