@@ -213,6 +213,21 @@ h3 {
   min-width: 104px;
 }
 
+.copy-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.announcement-banner {
+  border: 1px solid rgba(250, 204, 21, 0.35);
+  border-radius: 10px;
+  padding: 7px 10px;
+  color: #fde68a;
+  background: rgba(113, 63, 18, 0.26);
+  font-size: 0.88rem;
+}
+
 .presence-strip {
   display: flex;
   gap: 8px;
@@ -344,6 +359,15 @@ button:disabled {
   align-content: start;
 }
 
+.chat-shell.compact {
+  max-height: 140px;
+  gap: 4px;
+}
+
+.chat-shell.compact .bubble {
+  padding: 6px 8px;
+}
+
 .chat-log p {
   margin: 0;
   color: #dbeafe;
@@ -455,6 +479,39 @@ button:disabled {
   box-shadow: none;
 }
 
+.queue-row-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.slow-mode-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.setting-grid {
+  display: grid;
+  gap: 8px;
+  border: 1px solid rgba(100, 116, 139, 0.42);
+  border-radius: 10px;
+  padding: 10px;
+  background: rgba(8, 13, 25, 0.46);
+}
+
+.setting-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #dbeafe;
+  font-size: 0.9rem;
+}
+
+.setting-item input {
+  width: 16px;
+  height: 16px;
+}
+
 .legal p {
   display: flex;
   flex-wrap: wrap;
@@ -500,6 +557,10 @@ a {
   right: -60px;
   background: #2563eb;
   animation-delay: -3s;
+}
+
+.reduce-motion .ambient {
+  animation: none;
 }
 
 @keyframes float {

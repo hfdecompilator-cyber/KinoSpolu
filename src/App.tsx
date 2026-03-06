@@ -10,6 +10,7 @@ import {
 
 const STORAGE_PREFIX = "kinopulse.v3";
 const SESSION_KEY = `${STORAGE_PREFIX}.session`;
+const SETTINGS_KEY = `${STORAGE_PREFIX}.settings`;
 const SAMPLE_VIDEO =
   "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
 const allowedHosts = [
@@ -42,6 +43,9 @@ type RoomState = {
   locked: boolean;
   approvedUsers: string[];
   joinQueue: string[];
+  slowModeSec: number;
+  chatLocked: boolean;
+  announcement: string;
 };
 
 type ChatMessage = {
@@ -50,6 +54,12 @@ type ChatMessage = {
   text: string;
   own: boolean;
   at: string;
+};
+
+type UserSettings = {
+  compactChat: boolean;
+  reduceMotion: boolean;
+  autoSyncOnJoin: boolean;
 };
 
 const readJson = <T,>(key: string, fallback: T): T => {
@@ -68,6 +78,25 @@ const writeJson = (key: string, value: unknown) => {
 
 const roomStorageKey = (roomCode: string) => `${STORAGE_PREFIX}.room.${roomCode}`;
 const lastRoomKey = (username: string) => `${STORAGE_PREFIX}.lastRoom.${username}`;
+const defaultSettings: UserSettings = {
+  compactChat: false,
+  reduceMotion: false,
+  autoSyncOnJoin: true
+};
+
+const normalizeRoomState = (state: RoomState | null): RoomState | null => {
+  if (!state) return null;
+  return {
+    ...state,
+    privateLobby: state.privateLobby ?? true,
+    locked: state.locked ?? false,
+    approvedUsers: Array.isArray(state.approvedUsers) ? state.approvedUsers : [],
+    joinQueue: Array.isArray(state.joinQueue) ? state.joinQueue : [],
+    slowModeSec: typeof state.slowModeSec === "number" ? state.slowModeSec : 0,
+    chatLocked: !!state.chatLocked,
+    announcement: typeof state.announcement === "string" ? state.announcement : ""
+  };
+};
 
 const formatTime = (seconds: number) => {
   const mins = Math.floor(seconds / 60)
@@ -111,8 +140,12 @@ const ChatBubble = memo(function ChatBubble({ message }: { message: ChatMessage 
 
 function App() {
   const [session, setSession] = useState<Session | null>(() => readJson(SESSION_KEY, null));
+  const [settings, setSettings] = useState<UserSettings>(() =>
+    readJson<UserSettings>(SETTINGS_KEY, defaultSettings)
+  );
   const [authName, setAuthName] = useState("");
   const [authError, setAuthError] = useState("");
+  const [lobbyNotice, setLobbyNotice] = useState("");
 
   const [roomCode, setRoomCode] = useState("");
   const [watchUrl, setWatchUrl] = useState(SAMPLE_VIDEO);
@@ -121,6 +154,8 @@ function App() {
   const [joinPending, setJoinPending] = useState(false);
 
   const [chatInput, setChatInput] = useState("");
+  const [chatError, setChatError] = useState("");
+  const [announcementDraft, setAnnouncementDraft] = useState("");
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
     { id: 1, user: "Nova", text: "Queue feels smooth now.", own: false, at: "09:14" },
     { id: 2, user: "Mira", text: "Sync is tight, no drift yet.", own: false, at: "09:15" }
@@ -140,6 +175,8 @@ function App() {
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const lastHostPublishRef = useRef(0);
+  const lastGuestChatRef = useRef(0);
+  const noticeTimeoutRef = useRef<number | null>(null);
 
   const username = session?.username ?? "";
   const normalizedRoomCode = roomCode.trim().toUpperCase();
@@ -193,6 +230,22 @@ function App() {
     setSession(next);
     if (next) writeJson(SESSION_KEY, next);
     else localStorage.removeItem(SESSION_KEY);
+  }, []);
+
+  const patchSettings = useCallback((next: Partial<UserSettings>) => {
+    setSettings((current) => {
+      const updated = { ...current, ...next };
+      writeJson(SETTINGS_KEY, updated);
+      return updated;
+    });
+  }, []);
+
+  const flashLobbyNotice = useCallback((message: string) => {
+    setLobbyNotice(message);
+    if (noticeTimeoutRef.current !== null) {
+      window.clearTimeout(noticeTimeoutRef.current);
+    }
+    noticeTimeoutRef.current = window.setTimeout(() => setLobbyNotice(""), 2200);
   }, []);
 
   const rememberRoom = useCallback(
@@ -252,7 +305,10 @@ function App() {
       privateLobby: true,
       locked: false,
       approvedUsers: [username],
-      joinQueue: []
+      joinQueue: [],
+      slowModeSec: 0,
+      chatLocked: false,
+      announcement: ""
     };
     writeJson(roomKey, state);
     setRoomState(state);
@@ -265,7 +321,7 @@ function App() {
 
   const handleJoinRoom = useCallback(() => {
     if (!username || !roomKey) return;
-    const loaded = readJson<RoomState | null>(roomKey, null);
+    const loaded = normalizeRoomState(readJson<RoomState | null>(roomKey, null));
     if (!loaded) {
       setAuthError("No room found with that code yet.");
       return;
@@ -343,14 +399,103 @@ function App() {
     [isHost, publishRoomState, pushLog, roomState]
   );
 
+  const approveAllJoinRequests = useCallback(() => {
+    if (!isHost || !roomState || roomState.joinQueue.length === 0) return;
+    const approvedUsers = Array.from(new Set([...roomState.approvedUsers, ...roomState.joinQueue]));
+    publishRoomState({ approvedUsers, joinQueue: [] });
+    pushLog(`Approved all pending users (${roomState.joinQueue.length})`);
+  }, [isHost, publishRoomState, pushLog, roomState]);
+
+  const denyAllJoinRequests = useCallback(() => {
+    if (!isHost || !roomState || roomState.joinQueue.length === 0) return;
+    pushLog(`Denied all pending users (${roomState.joinQueue.length})`);
+    publishRoomState({ joinQueue: [] });
+  }, [isHost, publishRoomState, pushLog, roomState]);
+
+  const toggleChatLock = useCallback(() => {
+    if (!isHost || !roomState) return;
+    publishRoomState({ chatLocked: !roomState.chatLocked });
+    pushLog(roomState.chatLocked ? "Chat unlocked" : "Chat locked");
+  }, [isHost, publishRoomState, pushLog, roomState]);
+
+  const setSlowMode = useCallback(
+    (value: number) => {
+      if (!isHost || !roomState) return;
+      publishRoomState({ slowModeSec: value });
+      pushLog(value === 0 ? "Slow mode disabled" : `Slow mode set to ${value}s`);
+    },
+    [isHost, publishRoomState, pushLog, roomState]
+  );
+
+  const postAnnouncement = useCallback(() => {
+    if (!isHost || !roomState) return;
+    const clean = announcementDraft.trim();
+    if (!clean) return;
+    publishRoomState({ announcement: clean });
+    setAnnouncementDraft("");
+    appendChat(`Host announcement: ${clean}`, false);
+    pushLog("Host announcement posted");
+  }, [announcementDraft, appendChat, isHost, publishRoomState, pushLog, roomState]);
+
+  const clearAnnouncement = useCallback(() => {
+    if (!isHost || !roomState || !roomState.announcement) return;
+    publishRoomState({ announcement: "" });
+    pushLog("Host announcement cleared");
+  }, [isHost, publishRoomState, pushLog, roomState]);
+
+  const copyRoomCode = useCallback(() => {
+    if (!normalizedRoomCode) {
+      flashLobbyNotice("Enter or generate a room code first.");
+      return;
+    }
+    if (!navigator.clipboard?.writeText) {
+      flashLobbyNotice("Clipboard is unavailable on this device.");
+      return;
+    }
+    void navigator.clipboard
+      .writeText(normalizedRoomCode)
+      .then(() => flashLobbyNotice("Room code copied."))
+      .catch(() => flashLobbyNotice("Copy failed. Please copy manually."));
+  }, [flashLobbyNotice, normalizedRoomCode]);
+
+  const copyInviteMessage = useCallback(() => {
+    if (!normalizedRoomCode) {
+      flashLobbyNotice("Add a room code before sharing.");
+      return;
+    }
+    if (!navigator.clipboard?.writeText) {
+      flashLobbyNotice("Clipboard is unavailable on this device.");
+      return;
+    }
+    const invite = `Join my KinoPulse room ${normalizedRoomCode} and sync with me.`;
+    void navigator.clipboard
+      .writeText(invite)
+      .then(() => flashLobbyNotice("Invite message copied."))
+      .catch(() => flashLobbyNotice("Copy failed. Please copy manually."));
+  }, [flashLobbyNotice, normalizedRoomCode]);
+
   const handleSendChat = useCallback(
     (event: FormEvent) => {
       event.preventDefault();
       if (!chatInput.trim()) return;
+      if (roomState?.chatLocked && !isHost) {
+        setChatError("Chat is temporarily locked by host.");
+        return;
+      }
+      if (roomState && !isHost && roomState.slowModeSec > 0) {
+        const now = Date.now();
+        const remainingMs = roomState.slowModeSec * 1000 - (now - lastGuestChatRef.current);
+        if (remainingMs > 0) {
+          setChatError(`Slow mode active. Wait ${Math.ceil(remainingMs / 1000)}s.`);
+          return;
+        }
+        lastGuestChatRef.current = now;
+      }
+      setChatError("");
       appendChat(chatInput, true);
       setChatInput("");
     },
-    [appendChat, chatInput]
+    [appendChat, chatInput, isHost, roomState]
   );
 
   const sendQuickSpark = useCallback(
@@ -389,11 +534,19 @@ function App() {
   );
 
   useEffect(() => {
+    return () => {
+      if (noticeTimeoutRef.current !== null) {
+        window.clearTimeout(noticeTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     if (!username) return;
     const lastRoom = localStorage.getItem(lastRoomKey(username));
     if (!lastRoom) return;
     setRoomCode((current) => current || lastRoom);
-    const loaded = readJson<RoomState | null>(roomStorageKey(lastRoom), null);
+    const loaded = normalizeRoomState(readJson<RoomState | null>(roomStorageKey(lastRoom), null));
     if (!loaded) return;
     if (loaded.leader === username || loaded.approvedUsers.includes(username) || !loaded.privateLobby) {
       setWatchUrl(loaded.videoUrl);
@@ -406,7 +559,8 @@ function App() {
     const onStorage = (event: StorageEvent) => {
       if (event.key !== roomKey || !event.newValue) return;
       try {
-        const incoming = JSON.parse(event.newValue) as RoomState;
+        const incoming = normalizeRoomState(JSON.parse(event.newValue) as RoomState);
+        if (!incoming) return;
         setRoomState((current) => {
           if (!current) return incoming;
           if (incoming.updatedAt <= current.updatedAt) return current;
@@ -423,7 +577,7 @@ function App() {
   useEffect(() => {
     if (!roomKey) return;
     const poll = setInterval(() => {
-      const loaded = readJson<RoomState | null>(roomKey, null);
+      const loaded = normalizeRoomState(readJson<RoomState | null>(roomKey, null));
       if (!loaded) return;
       if (joinPending && username && loaded.approvedUsers.includes(username)) {
         setWatchUrl(loaded.videoUrl);
@@ -505,6 +659,17 @@ function App() {
     videoRef.current.currentTime = Math.max(0, expected);
   }, [roomState]);
 
+  useEffect(() => {
+    if (!settings.autoSyncOnJoin || !roomState || isHost || !videoRef.current) return;
+    const timer = window.setTimeout(() => {
+      if (!videoRef.current) return;
+      const expected =
+        roomState.playhead + (roomState.playing ? (Date.now() - roomState.updatedAt) / 1000 : 0);
+      videoRef.current.currentTime = Math.max(0, expected);
+    }, 180);
+    return () => window.clearTimeout(timer);
+  }, [isHost, roomState, settings.autoSyncOnJoin]);
+
   const launchDisabled = !username || !rightsConfirmed || watchHostStatus !== "allowed" || !roomKey;
 
   if (!session) {
@@ -536,7 +701,7 @@ function App() {
   }
 
   return (
-    <main className="app">
+    <main className={`app ${settings.reduceMotion ? "reduce-motion" : ""}`}>
       <div className="ambient ambient-a" />
       <div className="ambient ambient-b" />
       <section className="card">
@@ -553,7 +718,10 @@ function App() {
             <span className="chip">Engagement: {engagementScore}</span>
             <span className="chip">Role: {isHost ? "Host" : "Guest"}</span>
             {roomState && <span className="chip">{roomState.privateLobby ? "Private lobby" : "Open lobby"}</span>}
+            {roomState?.chatLocked && <span className="chip">Chat locked</span>}
+            {roomState?.slowModeSec ? <span className="chip">Slow mode {roomState.slowModeSec}s</span> : null}
           </div>
+          {roomState?.announcement && <p className="announcement-banner">📣 {roomState.announcement}</p>}
           <div className="button-row">
             <button type="button" onClick={() => persistSession(null)}>
               Switch profile
@@ -578,6 +746,15 @@ function App() {
                 Generate code
               </button>
             </div>
+            <div className="copy-row">
+              <button type="button" onClick={copyRoomCode}>
+                Copy code
+              </button>
+              <button type="button" onClick={copyInviteMessage}>
+                Copy invite
+              </button>
+            </div>
+            {lobbyNotice && <p className="ok">{lobbyNotice}</p>}
             <label>
               Watch link
               <input
@@ -666,14 +843,20 @@ function App() {
                 </span>
               ))}
             </div>
-            <div className="chat-shell">
+            <div className={`chat-shell ${settings.compactChat ? "compact" : ""}`}>
               {chatMessages.map((message) => (
                 <ChatBubble key={message.id} message={message} />
               ))}
             </div>
             <div className="quick-row">
               {quickSparkMessages.map((spark) => (
-                <button key={spark} type="button" className="quick" onClick={() => sendQuickSpark(spark)}>
+                <button
+                  key={spark}
+                  type="button"
+                  className="quick"
+                  onClick={() => sendQuickSpark(spark)}
+                  disabled={!!roomState?.chatLocked && !isHost}
+                >
                   {spark}
                 </button>
               ))}
@@ -683,9 +866,13 @@ function App() {
                 value={chatInput}
                 onChange={(event) => setChatInput(event.target.value)}
                 placeholder="Drop a message..."
+                disabled={!!roomState?.chatLocked && !isHost}
               />
-              <button type="submit">Send</button>
+              <button type="submit" disabled={!!roomState?.chatLocked && !isHost}>
+                Send
+              </button>
             </form>
+            {chatError && <p className="warn">{chatError}</p>}
             <div className="reactions">
               <button type="button" onClick={() => setFireReactions((n) => n + 1)}>
                 🔥 {fireReactions}
@@ -716,11 +903,48 @@ function App() {
                   <button type="button" onClick={toggleLobbyLock}>
                     {roomState.locked ? "Unlock lobby" : "Lock lobby"}
                   </button>
+                  <button type="button" onClick={toggleChatLock}>
+                    {roomState.chatLocked ? "Unlock chat" : "Lock chat"}
+                  </button>
                 </div>
+                <div className="slow-mode-row">
+                  <button type="button" onClick={() => setSlowMode(0)}>
+                    Slow off
+                  </button>
+                  <button type="button" onClick={() => setSlowMode(5)}>
+                    Slow 5s
+                  </button>
+                  <button type="button" onClick={() => setSlowMode(10)}>
+                    Slow 10s
+                  </button>
+                </div>
+                <div className="inline-form">
+                  <input
+                    value={announcementDraft}
+                    onChange={(event) => setAnnouncementDraft(event.target.value)}
+                    placeholder="Post announcement to all viewers..."
+                  />
+                  <button type="button" onClick={postAnnouncement}>
+                    Announce
+                  </button>
+                </div>
+                {roomState.announcement && (
+                  <button type="button" onClick={clearAnnouncement}>
+                    Clear announcement
+                  </button>
+                )}
                 {roomState.joinQueue.length === 0 ? (
                   <p className="subtle">No pending join requests.</p>
                 ) : (
                   <div className="queue-list">
+                    <div className="queue-row-actions">
+                      <button type="button" onClick={approveAllJoinRequests}>
+                        Approve all
+                      </button>
+                      <button type="button" onClick={denyAllJoinRequests}>
+                        Deny all
+                      </button>
+                    </div>
                     {roomState.joinQueue.map((requestUser) => (
                       <div key={requestUser} className="queue-item">
                         <span>@{requestUser}</span>
@@ -807,6 +1031,32 @@ function App() {
 
           <section className="panel">
             <h2>Safety activity log</h2>
+            <div className="setting-grid">
+              <label className="setting-item">
+                <input
+                  type="checkbox"
+                  checked={settings.compactChat}
+                  onChange={(event) => patchSettings({ compactChat: event.target.checked })}
+                />
+                Compact chat bubbles
+              </label>
+              <label className="setting-item">
+                <input
+                  type="checkbox"
+                  checked={settings.reduceMotion}
+                  onChange={(event) => patchSettings({ reduceMotion: event.target.checked })}
+                />
+                Reduce motion effects
+              </label>
+              <label className="setting-item">
+                <input
+                  type="checkbox"
+                  checked={settings.autoSyncOnJoin}
+                  onChange={(event) => patchSettings({ autoSyncOnJoin: event.target.checked })}
+                />
+                Auto-sync immediately after joining
+              </label>
+            </div>
             <div className="chat-log">
               {moderationLog.map((event, index) => (
                 <p key={`${event}-${index}`}>{event}</p>
