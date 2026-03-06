@@ -137,6 +137,14 @@ type ProgressSnapshot = {
 };
 
 type TabKey = "chat" | "participants" | "tools";
+type RecentRoomCard = {
+  roomCode: string;
+  serviceId: string;
+  serviceTag: string;
+  serviceAccent: string;
+  title: string;
+  subtitle: string;
+};
 
 const serviceCatalog: StreamingService[] = [
   {
@@ -305,6 +313,24 @@ const participantProfiles = [
 ];
 
 const quickSparkMessages = ["That cut was wild", "Sync is perfect now", "Drop another banger"];
+const fallbackRecentRooms: RecentRoomCard[] = [
+  {
+    roomCode: "FLIX87",
+    serviceId: "netflix",
+    serviceTag: "N",
+    serviceAccent: "#e50914",
+    title: "Netflix Watch Party",
+    subtitle: "Tap rejoin if room is active"
+  },
+  {
+    roomCode: "TUBE44",
+    serviceId: "youtube",
+    serviceTag: "YT",
+    serviceAccent: "#ff0033",
+    title: "YouTube Clips",
+    subtitle: "Fast rejoin if host is live"
+  }
+];
 const emojiPacks = [
   "🔥",
   "😂",
@@ -531,6 +557,9 @@ function App() {
   const [authGuided, setAuthGuided] = useState(false);
   const [authInfo, setAuthInfo] = useState("");
   const [authAutoStartServiceId, setAuthAutoStartServiceId] = useState<string | null>(null);
+  const [homeServiceId, setHomeServiceId] = useState<string>(() =>
+    localStorage.getItem(SERVICE_KEY) || "twitch"
+  );
 
   const [lobbyDraftSeed] = useState(() =>
     readJson<{
@@ -552,6 +581,7 @@ function App() {
   const [roomState, setRoomState] = useState<RoomState | null>(null);
   const [joinPending, setJoinPending] = useState(false);
   const [rulesAccepted, setRulesAccepted] = useState(false);
+  const [autoJoinRoomCode, setAutoJoinRoomCode] = useState<string | null>(null);
 
   const [chatInput, setChatInput] = useState("");
   const [chatError, setChatError] = useState("");
@@ -610,6 +640,7 @@ function App() {
     () => getServiceById(selectedServiceId || session?.serviceId),
     [selectedServiceId, session?.serviceId]
   );
+  const homeSelectedService = useMemo(() => getServiceById(homeServiceId), [homeServiceId]);
   const themeClass = `theme-${selectedService.id}`;
   const serviceConnected = selectedService.id === "direct" || !!serviceAuth[selectedService.id];
   const currentPath = location.pathname || "/";
@@ -683,6 +714,32 @@ function App() {
     const dedup = Array.from(new Map(merged.map((entry) => [entry.name.toLowerCase(), entry])).values());
     return dedup;
   }, [roomState]);
+
+  const recentRoomCards = useMemo<RecentRoomCard[]>(() => {
+    const usernames = Array.from(new Set([session?.username, ...recentProfiles].filter(Boolean))) as string[];
+    const knownCodes = usernames
+      .map((name) => localStorage.getItem(lastRoomKey(name)))
+      .filter((value): value is string => !!value)
+      .map((value) => value.trim().toUpperCase());
+    const dedupCodes = Array.from(new Set(knownCodes));
+    const mapped = dedupCodes
+      .map((code) => {
+        const room = normalizeRoomState(readJson<RoomState | null>(roomStorageKey(code), null));
+        if (!room) return null;
+        const roomService = getServiceById(room.serviceId);
+        return {
+          roomCode: code,
+          serviceId: roomService.id,
+          serviceTag: roomService.tag,
+          serviceAccent: roomService.accent,
+          title: room.mediaTitle || `${roomService.name} Watch Party`,
+          subtitle: `${roomService.name} • ${code}`
+        } satisfies RecentRoomCard;
+      })
+      .filter((entry): entry is RecentRoomCard => !!entry)
+      .slice(0, 4);
+    return mapped.length ? mapped : fallbackRecentRooms;
+  }, [recentProfiles, session?.username]);
 
   const allowedDomainStatus = useMemo(() => {
     if (!watchUrl.trim()) return "none";
@@ -1140,6 +1197,68 @@ function App() {
     setAuthAutoStartServiceId(serviceId);
     navigate("/auth");
   }, [navigate, persistServiceChoice, serviceAuth, session]);
+
+  const startRoomFromHome = useCallback(() => {
+    chooseService(homeServiceId);
+  }, [chooseService, homeServiceId]);
+
+  const pasteRoomCodeFromClipboard = useCallback(async () => {
+    if (!navigator.clipboard?.readText) {
+      flashNotice("Clipboard read is unavailable on this device.");
+      return;
+    }
+    try {
+      const clipped = (await navigator.clipboard.readText()).trim();
+      if (!clipped) {
+        flashNotice("Clipboard is empty.");
+        return;
+      }
+      const normalized = clipped.toUpperCase().replace(/[^A-Z0-9_-]/g, "").slice(0, 18);
+      if (!normalized) {
+        flashNotice("No valid room code found in clipboard.");
+        return;
+      }
+      setRoomCode(normalized);
+      flashNotice("Room code pasted.");
+    } catch {
+      flashNotice("Could not read clipboard.");
+    }
+  }, [flashNotice]);
+
+  const runQuickJoinFromHome = useCallback(
+    (targetRoomCode?: string) => {
+      const candidate = (targetRoomCode || roomCode).trim().toUpperCase();
+      if (!candidate) {
+        flashNotice("Enter a room code first.");
+        return;
+      }
+      const loaded = normalizeRoomState(readJson<RoomState | null>(roomStorageKey(candidate), null));
+      if (!loaded) {
+        flashNotice("Room not found on this device yet. Ask host to share active invite/code.");
+        return;
+      }
+      setRoomCode(candidate);
+      setMediaTitle(loaded.mediaTitle);
+      setWatchUrl(loaded.mediaUrl);
+      setRightsConfirmed(true);
+      persistServiceChoice(loaded.serviceId);
+      setAutoJoinRoomCode(candidate);
+      if (!session) {
+        setAuthInfo(`Fast sign-in then auto-joining room ${candidate}.`);
+        navigate("/auth");
+        return;
+      }
+      navigate("/lobby");
+    },
+    [flashNotice, navigate, persistServiceChoice, roomCode, session]
+  );
+
+  const rejoinRecentRoom = useCallback(
+    (room: RecentRoomCard) => {
+      runQuickJoinFromHome(room.roomCode);
+    },
+    [runQuickJoinFromHome]
+  );
 
   const autoContinueToLobby = useCallback(
     (preferredName?: string) => {
@@ -1878,6 +1997,16 @@ function App() {
   }, [selectedServiceId, session?.serviceId]);
 
   useEffect(() => {
+    if (selectedServiceId) {
+      setHomeServiceId(selectedServiceId);
+      return;
+    }
+    if (session?.serviceId) {
+      setHomeServiceId(session.serviceId);
+    }
+  }, [selectedServiceId, session?.serviceId]);
+
+  useEffect(() => {
     if (currentPath !== "/room") return;
     if (!roomState?.mediaUrl || !session?.username || !effectiveService.externalOnly) return;
     const onceKey = `${STORAGE_PREFIX}.officialOpened.${roomState.roomCode}.${session.username}.${roomState.mediaUrl}`;
@@ -2038,6 +2167,16 @@ function App() {
       return;
     }
   }, [currentPath, navigate, normalizedRoomCode, roomState, selectedServiceId, session]);
+
+  useEffect(() => {
+    if (!autoJoinRoomCode || !session || currentPath !== "/lobby") return;
+    if (normalizedRoomCode !== autoJoinRoomCode) {
+      setRoomCode(autoJoinRoomCode);
+      return;
+    }
+    handleJoinRoom();
+    setAutoJoinRoomCode(null);
+  }, [autoJoinRoomCode, currentPath, handleJoinRoom, normalizedRoomCode, session]);
 
   useEffect(() => {
     if (currentPath !== "/auth") return;
@@ -2268,34 +2407,87 @@ function App() {
 
   if (!selectedServiceId || currentPath === "/services") {
     return (
-      <main className="service-root">
-        <section className="service-card">
-          <p className="route-pill">Step 1 / 4 • Service</p>
-          <img src={brandLogoPath} alt="KinoPulse logo" className="brand-logo" />
-          <h1>Choose your streaming host</h1>
-          <p className="subtle">
-            Pick the service first. We then open its official sign-in in a secure in-app browser tab.
-          </p>
-          <div className="service-grid">
-            {serviceCatalog.map((service) => (
-              <button
-                key={service.id}
-                type="button"
-                className="service-option"
-                onClick={() => chooseService(service.id)}
-                style={{ borderColor: `${service.accent}66` }}
-              >
-                <span className="service-tag" style={{ backgroundColor: service.accent }}>
-                  {service.tag}
-                </span>
-                <strong>{service.name}</strong>
-                <span>{service.legalHint}</span>
+      <main className={`service-root service-home-root theme-${homeSelectedService.id}`}>
+        <section className="service-home-shell">
+          <header className="service-home-header">
+            <div>
+              <img src={brandLogoPath} alt="KinoPulse logo" className="brand-logo" />
+              <h1>KinoPulse</h1>
+              <p>Watch party</p>
+            </div>
+            <div className="service-home-status">
+              <span>Ready to launch</span>
+              <span>Projection ready</span>
+              <span>Service: {homeSelectedService.name}</span>
+            </div>
+          </header>
+
+          <div className="service-home-columns">
+            <section className="service-home-card host">
+              <p className="service-home-title">Ready to host?</p>
+              <h2>Choose your streaming host</h2>
+              <div className="service-home-matrix">
+                {serviceCatalog.map((service) => (
+                  <button
+                    key={service.id}
+                    type="button"
+                    className={`service-home-tile ${homeServiceId === service.id ? "active" : ""} ${
+                      service.id === "direct" ? "special" : ""
+                    }`}
+                    style={{ background: service.id === "direct" ? "rgba(49,46,129,0.95)" : service.accent }}
+                    onClick={() => setHomeServiceId(service.id)}
+                  >
+                    {service.id === "direct" ? "Licensed\nDirect URL" : service.tag}
+                  </button>
+                ))}
+              </div>
+              <p className="service-home-note">
+                Sync-only. Each participant uses their own service account; no rebroadcasting.
+              </p>
+              <button type="button" className="service-home-start" onClick={startRoomFromHome}>
+                [ Start New Room ]
               </button>
-            ))}
+              <p className="note">Industry pattern: no rebroadcasting.</p>
+            </section>
+
+            <section className="service-home-card guest">
+              <p className="service-home-title">Guest</p>
+              <h2>Join a watch party</h2>
+              <label className="service-home-input-wrap">
+                Enter room code
+                <input
+                  value={roomCode}
+                  onChange={(event) => setRoomCode(event.target.value.toUpperCase())}
+                  placeholder="PULSE"
+                />
+              </label>
+              <div className="service-home-guest-actions">
+                <button type="button" onClick={pasteRoomCodeFromClipboard}>
+                  Paste
+                </button>
+                <button type="button" onClick={() => runQuickJoinFromHome()}>
+                  [ Join Room ]
+                </button>
+              </div>
+              <h3>Recent rooms</h3>
+              <div className="service-home-recent">
+                {recentRoomCards.map((room) => (
+                  <article key={`${room.roomCode}-${room.serviceId}`} className="service-home-recent-card">
+                    <div className="service-home-recent-thumb" style={{ background: room.serviceAccent }}>
+                      {room.serviceTag}
+                    </div>
+                    <div className="service-home-recent-meta">
+                      <strong>{room.title}</strong>
+                      <span>{room.subtitle}</span>
+                    </div>
+                    <button type="button" onClick={() => rejoinRecentRoom(room)}>
+                      Rejoin
+                    </button>
+                  </article>
+                ))}
+              </div>
+            </section>
           </div>
-          <p className="note">
-            Industry pattern: each participant uses their own service account; no rebroadcasting.
-          </p>
         </section>
       </main>
     );
