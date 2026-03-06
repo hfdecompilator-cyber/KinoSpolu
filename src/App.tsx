@@ -241,7 +241,7 @@ const serviceCatalog: StreamingService[] = [
     tag: "YT",
     accent: "#ff0033",
     accentRgb: "255,0,51",
-    domains: ["www.youtube.com", "youtube.com", "youtu.be"],
+    domains: ["www.youtube.com", "youtube.com", "m.youtube.com", "music.youtube.com", "youtu.be"],
     externalOnly: true,
     legalHint: "Use official YouTube links and respect creator rights.",
     loginUrl: "https://accounts.google.com/ServiceLogin?service=youtube",
@@ -649,11 +649,17 @@ function App() {
     [roomState?.serviceId, selectedService.id]
   );
 
+  const roomWatchUrl = roomState?.mediaUrl || watchUrl;
+  const roomYouTubeEmbedUrl = useMemo(() => {
+    if (effectiveService.id !== "youtube") return null;
+    return toYouTubeEmbedUrl(roomWatchUrl);
+  }, [effectiveService.id, roomWatchUrl]);
+  const useNativeVideoPlayer = !effectiveService.externalOnly;
   const inAppVideoUrl = useMemo(() => {
     if (!roomState) return SAMPLE_VIDEO;
-    if (effectiveService.externalOnly) return SAMPLE_VIDEO;
+    if (!useNativeVideoPlayer) return "";
     return roomState.mediaUrl || SAMPLE_VIDEO;
-  }, [effectiveService.externalOnly, roomState]);
+  }, [roomState, useNativeVideoPlayer]);
 
   const lobbyPreviewUrl = useMemo(() => {
     if (selectedService.externalOnly) return SAMPLE_VIDEO;
@@ -1777,11 +1783,18 @@ function App() {
   }, [isHost, publishRoomState, roomState?.playing]);
 
   const syncNow = useCallback(() => {
-    if (!roomState || !videoRef.current) return;
+    if (!roomState) return;
+    if (!videoRef.current) {
+      if (effectiveService.externalOnly) {
+        openOfficialMedia();
+        flashNotice("Opened official player. Use its built-in sync/PiP controls.");
+      }
+      return;
+    }
     const expected =
       roomState.playhead + (roomState.playing ? (Date.now() - roomState.updatedAt) / 1000 : 0);
     videoRef.current.currentTime = Math.max(0, expected);
-  }, [roomState]);
+  }, [effectiveService.externalOnly, flashNotice, openOfficialMedia, roomState]);
 
   const toggleCaptions = useCallback(() => {
     setCaptionsOn((current) => {
@@ -1806,6 +1819,11 @@ function App() {
   }, [flashNotice]);
 
   const togglePictureInPicture = useCallback(async () => {
+    if (effectiveService.externalOnly) {
+      openOfficialMedia();
+      flashNotice("PiP is handled by the official player/app. Opened it now.");
+      return;
+    }
     const video = videoRef.current as VideoWithPiP | null;
     if (!video) return;
     const pipDocument = document as DocumentWithPiP;
@@ -1820,7 +1838,7 @@ function App() {
     } catch {
       flashNotice("Unable to toggle picture-in-picture.");
     }
-  }, [flashNotice]);
+  }, [effectiveService.externalOnly, flashNotice, openOfficialMedia]);
 
   const openVoiceRoom = useCallback(async () => {
     try {
@@ -1838,6 +1856,27 @@ function App() {
       localStorage.setItem(SERVICE_KEY, session.serviceId);
     }
   }, [selectedServiceId, session?.serviceId]);
+
+  useEffect(() => {
+    if (currentPath !== "/room") return;
+    if (!roomState?.mediaUrl || !session?.username || !effectiveService.externalOnly) return;
+    const onceKey = `${STORAGE_PREFIX}.officialOpened.${roomState.roomCode}.${session.username}.${roomState.mediaUrl}`;
+    if (localStorage.getItem(onceKey) === "1") return;
+    localStorage.setItem(onceKey, "1");
+    void openSecureServiceTab(roomState.mediaUrl, effectiveService.accent)
+      .then(() => flashNotice(`${effectiveService.name} opened automatically.`))
+      .catch(() => flashNotice(`Could not auto-open ${effectiveService.name}.`));
+  }, [
+    currentPath,
+    effectiveService.accent,
+    effectiveService.externalOnly,
+    effectiveService.name,
+    flashNotice,
+    openSecureServiceTab,
+    roomState?.mediaUrl,
+    roomState?.roomCode,
+    session?.username
+  ]);
 
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
@@ -2798,31 +2837,48 @@ function App() {
             <MetricTile label="Playhead" value={formatTime(videoRef.current?.currentTime ?? roomState.playhead)} />
             <MetricTile label="Latency" value="98ms" />
           </div>
-          <video
-            className="video-stage"
-            ref={videoRef}
-            src={inAppVideoUrl}
-            preload="metadata"
-            playsInline
-            onTimeUpdate={handleVideoTimeUpdate}
-          >
-            <track
-              kind="subtitles"
-              src="/subtitles/bigbuckbunny_en.vtt"
-              srcLang="en"
-              label="English"
-              default={settings.subtitlesEnabled}
+          {useNativeVideoPlayer ? (
+            <video
+              className="video-stage"
+              ref={videoRef}
+              src={inAppVideoUrl}
+              preload="metadata"
+              playsInline
+              onTimeUpdate={handleVideoTimeUpdate}
+            >
+              <track
+                kind="subtitles"
+                src="/subtitles/bigbuckbunny_en.vtt"
+                srcLang="en"
+                label="English"
+                default={settings.subtitlesEnabled}
+              />
+            </video>
+          ) : roomYouTubeEmbedUrl ? (
+            <iframe
+              className="video-stage"
+              src={roomYouTubeEmbedUrl}
+              title="YouTube live room player"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowFullScreen
             />
-          </video>
+          ) : (
+            <div className="external-player-card">
+              <p>Playback stays in the official {effectiveService.name} app/tab.</p>
+              <button type="button" onClick={openOfficialMedia}>
+                Open {effectiveService.name} now
+              </button>
+            </div>
+          )}
           <div className="player-utility-row">
-            <button type="button" onClick={toggleCaptions}>
+            <button type="button" onClick={toggleCaptions} disabled={!useNativeVideoPlayer}>
               {captionsOn ? "Subtitles ON" : "Subtitles OFF"}
             </button>
             <button type="button" onClick={toggleFullscreen}>
               {isFullscreen ? "Exit fullscreen" : "Fullscreen"}
             </button>
             <button type="button" onClick={togglePictureInPicture}>
-              Picture-in-picture
+              {effectiveService.externalOnly ? "Open official PiP" : "Picture-in-picture"}
             </button>
             <button type="button" onClick={openVoiceRoom}>
               Voice room

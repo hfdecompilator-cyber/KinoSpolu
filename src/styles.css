@@ -651,6 +651,15 @@ button:disabled {
     0 0 26px rgba(var(--service-accent-rgb), 0.27);
 }
 
+.external-player-card {
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  border-radius: 12px;
+  padding: 14px;
+  background: rgba(8, 15, 30, 0.8);
+  display: grid;
+  gap: 10px;
+}
+
 .player-utility-row {
   display: flex;
   flex-wrap: wrap;
