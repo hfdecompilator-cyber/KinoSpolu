@@ -9,6 +9,11 @@ import {
 } from "react";
 import { Browser } from "@capacitor/browser";
 import { Capacitor } from "@capacitor/core";
+import {
+  createClient,
+  type RealtimeChannel,
+  type SupabaseClient
+} from "@supabase/supabase-js";
 import { useLocation, useNavigate } from "react-router-dom";
 
 const STORAGE_PREFIX = "kinopulse.v4";
@@ -23,6 +28,23 @@ const SAMPLE_VIDEO =
 const SUPABASE_CONFIGURED = Boolean(
   import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY
 );
+const brandLogoPath = "/brand/kinopulse-logo.svg";
+type WakeLockHandle = { release: () => Promise<void> };
+type NavigatorWithWakeLock = Navigator & {
+  wakeLock?: { request: (type: "screen") => Promise<WakeLockHandle> };
+};
+type VideoWithPiP = HTMLVideoElement & {
+  requestPictureInPicture?: () => Promise<unknown>;
+};
+type DocumentWithPiP = Document & {
+  pictureInPictureElement?: Element | null;
+  exitPictureInPicture?: () => Promise<void>;
+};
+const supabaseClient: SupabaseClient | null = SUPABASE_CONFIGURED
+  ? createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY, {
+      auth: { persistSession: true, autoRefreshToken: true }
+    })
+  : null;
 
 type StreamingService = {
   id: string;
@@ -72,6 +94,13 @@ type UserSettings = {
   compactChat: boolean;
   reduceMotion: boolean;
   autoSyncOnJoin: boolean;
+  showTimestamps: boolean;
+  cinematicButtons: boolean;
+  highContrast: boolean;
+  subtitlesEnabled: boolean;
+  soundsEnabled: boolean;
+  profanityFilter: boolean;
+  keepScreenAwake: boolean;
 };
 
 type TabKey = "chat" | "participants" | "tools";
@@ -243,11 +272,35 @@ const participantProfiles = [
 ];
 
 const quickSparkMessages = ["That cut was wild", "Sync is perfect now", "Drop another banger"];
+const emojiPacks = [
+  "🔥",
+  "😂",
+  "🤯",
+  "👏",
+  "💯",
+  "🎉",
+  "🫶",
+  "😮‍💨",
+  "👀",
+  "🧠",
+  "🍿",
+  "✨",
+  "🫡",
+  "🚀"
+];
+const aiStyleEmoticons = ["(づ｡◕‿‿◕｡)づ", "ʕ•ᴥ•ʔ", "(ง •̀_•́)ง", "ヾ(•ω•`)o", "╰(*°▽°*)╯"];
 
 const defaultSettings: UserSettings = {
   compactChat: false,
   reduceMotion: false,
-  autoSyncOnJoin: true
+  autoSyncOnJoin: true,
+  showTimestamps: true,
+  cinematicButtons: true,
+  highContrast: false,
+  subtitlesEnabled: true,
+  soundsEnabled: true,
+  profanityFilter: false,
+  keepScreenAwake: false
 };
 
 const roomStorageKey = (roomCode: string) => `${STORAGE_PREFIX}.room.${roomCode}`;
@@ -308,6 +361,12 @@ const formatTime = (seconds: number) => {
 const getClock = () =>
   new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
+const sanitizeProfanity = (value: string) =>
+  value
+    .replace(/\b(fuck|shit|bitch|asshole)\b/gi, "***")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+
 const MetricTile = memo(function MetricTile({
   label,
   value
@@ -323,12 +382,18 @@ const MetricTile = memo(function MetricTile({
   );
 });
 
-const ChatBubble = memo(function ChatBubble({ message }: { message: ChatMessage }) {
+const ChatBubble = memo(function ChatBubble({
+  message,
+  showTimestamp
+}: {
+  message: ChatMessage;
+  showTimestamp: boolean;
+}) {
   return (
     <article className={`bubble ${message.own ? "own" : ""}`}>
       <p className="bubble-meta">
         <strong>{message.user}</strong>
-        <span>{message.at}</span>
+        {showTimestamp && <span>{message.at}</span>}
       </p>
       <p className="bubble-text">{message.text}</p>
     </article>
@@ -347,9 +412,10 @@ function App() {
   );
   const [session, setSession] = useState<Session | null>(() => readJson(SESSION_KEY, null));
   const [recentProfiles, setRecentProfiles] = useState<string[]>(() => readJson(PROFILES_KEY, []));
-  const [settings, setSettings] = useState<UserSettings>(() =>
-    readJson<UserSettings>(SETTINGS_KEY, defaultSettings)
-  );
+  const [settings, setSettings] = useState<UserSettings>(() => ({
+    ...defaultSettings,
+    ...readJson<Partial<UserSettings>>(SETTINGS_KEY, {})
+  }));
 
   const [authName, setAuthName] = useState("");
   const [authError, setAuthError] = useState("");
@@ -388,12 +454,21 @@ function App() {
   const [activeTab, setActiveTab] = useState<TabKey>("chat");
   const [achievement, setAchievement] = useState<{ title: string; body: string } | null>(null);
   const [notice, setNotice] = useState("");
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [captionsOn, setCaptionsOn] = useState(settings.subtitlesEnabled);
+  const [voiceTipsOpen, setVoiceTipsOpen] = useState(false);
+  const [backendHealth, setBackendHealth] = useState<"fallback" | "checking" | "healthy" | "degraded">(
+    SUPABASE_CONFIGURED ? "checking" : "fallback"
+  );
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const playerShellRef = useRef<HTMLDivElement | null>(null);
   const lastHostPublishRef = useRef(0);
   const lastGuestChatRef = useRef(0);
   const noticeTimeoutRef = useRef<number | null>(null);
   const achievementTimeoutRef = useRef<number | null>(null);
+  const wakeLockRef = useRef<WakeLockHandle | null>(null);
+  const roomChannelRef = useRef<RealtimeChannel | null>(null);
 
   const selectedService = useMemo(
     () => getServiceById(selectedServiceId || session?.serviceId),
@@ -406,6 +481,15 @@ function App() {
   const username = session?.username ?? "";
   const normalizedRoomCode = roomCode.trim().toUpperCase();
   const roomKey = normalizedRoomCode ? roomStorageKey(normalizedRoomCode) : "";
+  const voiceRoomUrl = `https://meet.jit.si/kinopulse-${(normalizedRoomCode || "lobby").toLowerCase()}`;
+  const backendLabel =
+    backendHealth === "fallback"
+      ? "Local mode active"
+      : backendHealth === "healthy"
+      ? "Supabase connected"
+      : backendHealth === "checking"
+      ? "Supabase checking"
+      : "Supabase degraded";
   const partyLive = !!roomState;
   const isHost = !!roomState && roomState.leader === username;
 
@@ -482,22 +566,54 @@ function App() {
     setModerationLog((current) => [event, ...current].slice(0, 18));
   }, []);
 
-  const appendChat = useCallback((text: string, own: boolean) => {
-    const clean = text.trim();
-    if (!clean) return;
-    setChatMessages((current) =>
-      [
-        ...current,
-        {
-          id: Date.now() + Math.floor(Math.random() * 1000),
-          user: own ? "You" : "System",
-          text: clean,
-          own,
-          at: getClock()
-        }
-      ].slice(-90)
-    );
+  const playUiPop = useCallback(() => {
+    if (!settings.soundsEnabled) return;
+    try {
+      const context = new AudioContext();
+      const oscillator = context.createOscillator();
+      const gainNode = context.createGain();
+      oscillator.type = "triangle";
+      oscillator.frequency.setValueAtTime(620, context.currentTime);
+      oscillator.frequency.exponentialRampToValueAtTime(860, context.currentTime + 0.08);
+      gainNode.gain.setValueAtTime(0.01, context.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.08);
+      oscillator.connect(gainNode);
+      gainNode.connect(context.destination);
+      oscillator.start();
+      oscillator.stop(context.currentTime + 0.08);
+    } catch {
+      return;
+    }
+  }, [settings.soundsEnabled]);
+
+  const sendRealtimeEvent = useCallback((event: string, payload: unknown) => {
+    const channel = roomChannelRef.current;
+    if (!channel) return;
+    void channel.send({
+      type: "broadcast",
+      event,
+      payload
+    });
   }, []);
+
+  const appendChat = useCallback(
+    (text: string, own: boolean, shouldBroadcast = false, senderOverride?: string) => {
+      const clean = text.trim();
+      if (!clean) return;
+      const message: ChatMessage = {
+        id: Date.now() + Math.floor(Math.random() * 1000),
+        user: senderOverride || (own ? username || "You" : "System"),
+        text: clean,
+        own,
+        at: getClock()
+      };
+      setChatMessages((current) => [...current, message].slice(-90));
+      if (shouldBroadcast) {
+        sendRealtimeEvent("chat_message", message);
+      }
+    },
+    [sendRealtimeEvent, username]
+  );
 
   const rememberProfile = useCallback((profile: string) => {
     setRecentProfiles((current) => {
@@ -584,10 +700,11 @@ function App() {
         if (!current || !roomKey) return current;
         const merged: RoomState = { ...current, ...next, updatedAt: Date.now() };
         writeJson(roomKey, merged);
+        sendRealtimeEvent("room_state", merged);
         return merged;
       });
     },
-    [roomKey]
+    [roomKey, sendRealtimeEvent]
   );
 
   const unlockAchievement = useCallback((title: string, body: string) => {
@@ -799,10 +916,11 @@ function App() {
     };
     writeJson(roomKey, state);
     setRoomState(state);
+    sendRealtimeEvent("room_state", state);
     setJoinPending(false);
     setRulesAccepted(true);
     rememberRoom(state.roomCode);
-    appendChat("Room is now live. Everyone syncing in...", false);
+    appendChat("Room is now live. Everyone syncing in...", false, true, "System");
     pushLog(`Room ${state.roomCode} launched`);
     if (!localStorage.getItem(ACH_FIRST_ROOM_KEY)) {
       localStorage.setItem(ACH_FIRST_ROOM_KEY, "1");
@@ -818,6 +936,7 @@ function App() {
     roomKey,
     selectedService.id,
     selectedService.name,
+    sendRealtimeEvent,
     session,
     unlockAchievement,
     watchUrl,
@@ -871,6 +990,7 @@ function App() {
         updatedAt: Date.now()
       };
       writeJson(roomKey, updated);
+      sendRealtimeEvent("room_state", updated);
     }
 
     setJoinPending(true);
@@ -882,6 +1002,7 @@ function App() {
     roomKey,
     selectedService.name,
     selectedService.id,
+    sendRealtimeEvent,
     serviceConnected,
     session,
     navigate
@@ -989,7 +1110,7 @@ function App() {
     const clean = announcementDraft.trim();
     if (!clean) return;
     publishRoomState({ announcement: clean });
-    appendChat(`Host announcement: ${clean}`, false);
+    appendChat(`Host announcement: ${clean}`, false, true, "System");
     setAnnouncementDraft("");
     pushLog("Announcement posted");
   }, [announcementDraft, appendChat, isHost, publishRoomState, pushLog, roomState]);
@@ -1022,16 +1143,35 @@ function App() {
         lastGuestChatRef.current = now;
       }
       setChatError("");
-      appendChat(chatInput, true);
+      const outgoing = settings.profanityFilter ? sanitizeProfanity(chatInput) : chatInput.trim();
+      appendChat(outgoing, true, true);
       setChatInput("");
+      playUiPop();
     },
-    [appendChat, chatInput, isHost, roomState, rulesAccepted]
+    [appendChat, chatInput, isHost, playUiPop, roomState, rulesAccepted, settings.profanityFilter]
   );
 
   const sendQuickSpark = useCallback(
-    (spark: string) => appendChat(spark, true),
-    [appendChat]
+    (spark: string) => {
+      appendChat(spark, true, true);
+      playUiPop();
+    },
+    [appendChat, playUiPop]
   );
+
+  const sendEmoji = useCallback(
+    (emoji: string) => {
+      appendChat(`${emoji} ${emoji}`, true, true);
+      playUiPop();
+    },
+    [appendChat, playUiPop]
+  );
+
+  const sendAiEmoticon = useCallback(() => {
+    const pick = aiStyleEmoticons[Math.floor(Math.random() * aiStyleEmoticons.length)];
+    appendChat(`${pick} hype check`, true, true);
+    playUiPop();
+  }, [appendChat, playUiPop]);
 
   const runModAction = useCallback(
     (action: string) => {
@@ -1106,12 +1246,77 @@ function App() {
     videoRef.current.currentTime = Math.max(0, expected);
   }, [roomState]);
 
+  const toggleCaptions = useCallback(() => {
+    setCaptionsOn((current) => {
+      const next = !current;
+      patchSettings({ subtitlesEnabled: next });
+      return next;
+    });
+  }, [patchSettings]);
+
+  const toggleFullscreen = useCallback(async () => {
+    const target = playerShellRef.current || videoRef.current;
+    if (!target) return;
+    try {
+      if (!document.fullscreenElement) {
+        await target.requestFullscreen();
+      } else {
+        await document.exitFullscreen();
+      }
+    } catch {
+      flashNotice("Fullscreen is unavailable on this device.");
+    }
+  }, [flashNotice]);
+
+  const togglePictureInPicture = useCallback(async () => {
+    const video = videoRef.current as VideoWithPiP | null;
+    if (!video) return;
+    const pipDocument = document as DocumentWithPiP;
+    try {
+      if (pipDocument.pictureInPictureElement && pipDocument.exitPictureInPicture) {
+        await pipDocument.exitPictureInPicture();
+      } else if (video.requestPictureInPicture) {
+        await video.requestPictureInPicture();
+      } else {
+        flashNotice("Picture-in-picture is not supported.");
+      }
+    } catch {
+      flashNotice("Unable to toggle picture-in-picture.");
+    }
+  }, [flashNotice]);
+
+  const openVoiceRoom = useCallback(async () => {
+    try {
+      await openSecureServiceTab(voiceRoomUrl, selectedService.accent);
+      pushLog("Opened high-quality voice room");
+      flashNotice("Voice room opened (Jitsi secure tab).");
+    } catch {
+      flashNotice("Could not open voice room.");
+    }
+  }, [flashNotice, openSecureServiceTab, pushLog, selectedService.accent, voiceRoomUrl]);
+
   useEffect(() => {
     if (!selectedServiceId && session?.serviceId) {
       setSelectedServiceId(session.serviceId);
       localStorage.setItem(SERVICE_KEY, session.serviceId);
     }
   }, [selectedServiceId, session?.serviceId]);
+
+  useEffect(() => {
+    setCaptionsOn(settings.subtitlesEnabled);
+  }, [settings.subtitlesEnabled]);
+
+  useEffect(() => {
+    const onFullScreenChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", onFullScreenChange);
+    return () => document.removeEventListener("fullscreenchange", onFullScreenChange);
+  }, []);
+
+  useEffect(() => {
+    if (!session) return;
+    if (backendHealth === "healthy") pushLog("Backend health check: Supabase realtime connected");
+    if (backendHealth === "degraded") pushLog("Backend health check: Supabase degraded, fallback active");
+  }, [backendHealth, pushLog, session]);
 
   useEffect(() => {
     const knownPaths = new Set(["/services", "/auth", "/lobby", "/room"]);
@@ -1199,6 +1404,47 @@ function App() {
   }, [roomKey]);
 
   useEffect(() => {
+    if (!supabaseClient || !session || !normalizedRoomCode) {
+      if (!SUPABASE_CONFIGURED) setBackendHealth("fallback");
+      return;
+    }
+    setBackendHealth("checking");
+    const channel = supabaseClient.channel(`kinopulse:${normalizedRoomCode}`, {
+      config: { broadcast: { self: false } }
+    });
+
+    channel.on("broadcast", { event: "room_state" }, ({ payload }) => {
+      const incoming = normalizeRoomState(payload as RoomState);
+      if (!incoming) return;
+      setRoomState((current) => {
+        if (!current) return incoming;
+        return incoming.updatedAt > current.updatedAt ? incoming : current;
+      });
+      if (roomKey) writeJson(roomKey, incoming);
+    });
+
+    channel.on("broadcast", { event: "chat_message" }, ({ payload }) => {
+      const incoming = payload as ChatMessage;
+      if (!incoming?.text) return;
+      setChatMessages((current) => {
+        if (current.some((entry) => entry.id === incoming.id)) return current;
+        return [...current, { ...incoming, own: incoming.user === username }].slice(-90);
+      });
+    });
+
+    channel.subscribe((status) => {
+      if (status === "SUBSCRIBED") setBackendHealth("healthy");
+      if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") setBackendHealth("degraded");
+    });
+
+    roomChannelRef.current = channel;
+    return () => {
+      roomChannelRef.current = null;
+      void supabaseClient.removeChannel(channel);
+    };
+  }, [normalizedRoomCode, roomKey, session, username]);
+
+  useEffect(() => {
     if (!roomKey) return;
     const poll = setInterval(() => {
       const loaded = normalizeRoomState(readJson<RoomState | null>(roomKey, null));
@@ -1259,6 +1505,41 @@ function App() {
   }, [isHost, roomState, settings.autoSyncOnJoin]);
 
   useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    const applyTrackMode = () => {
+      const track = video.textTracks?.[0];
+      if (!track) return;
+      track.mode = captionsOn ? "showing" : "disabled";
+    };
+    applyTrackMode();
+    video.addEventListener("loadedmetadata", applyTrackMode);
+    return () => video.removeEventListener("loadedmetadata", applyTrackMode);
+  }, [captionsOn, inAppVideoUrl]);
+
+  useEffect(() => {
+    if (!settings.keepScreenAwake || !partyLive || !("wakeLock" in navigator)) return;
+    let cancelled = false;
+    const wakeLockNavigator = navigator as NavigatorWithWakeLock;
+    const requestWakeLock = async () => {
+      try {
+        if (!wakeLockNavigator.wakeLock) return;
+        wakeLockRef.current = await wakeLockNavigator.wakeLock.request("screen");
+      } catch {
+        if (!cancelled) flashNotice("Screen lock control unavailable.");
+      }
+    };
+    void requestWakeLock();
+    return () => {
+      cancelled = true;
+      if (wakeLockRef.current) {
+        void wakeLockRef.current.release();
+        wakeLockRef.current = null;
+      }
+    };
+  }, [flashNotice, partyLive, settings.keepScreenAwake]);
+
+  useEffect(() => {
     return () => {
       if (noticeTimeoutRef.current !== null) window.clearTimeout(noticeTimeoutRef.current);
       if (achievementTimeoutRef.current !== null) window.clearTimeout(achievementTimeoutRef.current);
@@ -1270,6 +1551,7 @@ function App() {
       <main className="service-root">
         <section className="service-card">
           <p className="route-pill">Step 1 / 4 • Service</p>
+          <img src={brandLogoPath} alt="KinoPulse logo" className="brand-logo" />
           <h1>Choose your streaming host</h1>
           <p className="subtle">
             Pick the service first. We then open its official sign-in in a secure in-app browser tab.
@@ -1304,6 +1586,7 @@ function App() {
       <main className={`auth-root ${themeClass}`}>
         <section className="auth-card">
           <p className="route-pill">Step 2 / 4 • Authentication</p>
+          <img src={brandLogoPath} alt="KinoPulse logo" className="brand-logo" />
           <h1>KinoPulse Rooms</h1>
           <p className="subtle">
             Selected: <strong>{selectedService.name}</strong>. Secure in-app authentication starts below.
@@ -1407,6 +1690,9 @@ function App() {
           <button type="button" onClick={confirmServiceSignIn}>
             I finished sign-in
           </button>
+          <button type="button" onClick={openVoiceRoom}>
+            Open voice room
+          </button>
         </div>
       </div>
       <label>
@@ -1501,7 +1787,7 @@ function App() {
             </p>
             <p className="subtle">
               Backend mode:{" "}
-              <strong>{SUPABASE_CONFIGURED ? "Supabase realtime enabled" : "Local fallback mode"}</strong>
+              <strong>{backendLabel}</strong>
             </p>
             <div className="button-row">
               <button type="button" onClick={switchProfile}>
@@ -1536,6 +1822,28 @@ function App() {
                 Mark sign-in complete
               </button>
             </div>
+          </section>
+
+          <section className="panel">
+            <h3>Voice chat</h3>
+            <p className="subtle">
+              Quick room voice uses secure Jitsi link. For premium scale consider LiveKit, Daily, or Agora.
+            </p>
+            <div className="button-row">
+              <button type="button" onClick={openVoiceRoom}>
+                Open voice room
+              </button>
+              <button type="button" onClick={() => setVoiceTipsOpen((current) => !current)}>
+                {voiceTipsOpen ? "Hide voice tips" : "Show voice tips"}
+              </button>
+            </div>
+            {voiceTipsOpen && (
+              <p className="voice-tip">
+                Best quality: headphones, mute when not speaking, and stable Wi-Fi. Voice room URL:
+                <br />
+                <strong>{voiceRoomUrl}</strong>
+              </p>
+            )}
           </section>
 
           {RoomComposer}
@@ -1584,6 +1892,62 @@ function App() {
                 />
                 Auto-sync immediately after joining
               </label>
+              <label className="setting-item">
+                <input
+                  type="checkbox"
+                  checked={settings.showTimestamps}
+                  onChange={(event) => patchSettings({ showTimestamps: event.target.checked })}
+                />
+                Show message timestamps
+              </label>
+              <label className="setting-item">
+                <input
+                  type="checkbox"
+                  checked={settings.cinematicButtons}
+                  onChange={(event) => patchSettings({ cinematicButtons: event.target.checked })}
+                />
+                Cinematic 3D buttons
+              </label>
+              <label className="setting-item">
+                <input
+                  type="checkbox"
+                  checked={settings.highContrast}
+                  onChange={(event) => patchSettings({ highContrast: event.target.checked })}
+                />
+                High contrast mode
+              </label>
+              <label className="setting-item">
+                <input
+                  type="checkbox"
+                  checked={settings.subtitlesEnabled}
+                  onChange={(event) => patchSettings({ subtitlesEnabled: event.target.checked })}
+                />
+                Enable subtitles by default
+              </label>
+              <label className="setting-item">
+                <input
+                  type="checkbox"
+                  checked={settings.soundsEnabled}
+                  onChange={(event) => patchSettings({ soundsEnabled: event.target.checked })}
+                />
+                UI sound feedback
+              </label>
+              <label className="setting-item">
+                <input
+                  type="checkbox"
+                  checked={settings.profanityFilter}
+                  onChange={(event) => patchSettings({ profanityFilter: event.target.checked })}
+                />
+                Profanity filter in chat
+              </label>
+              <label className="setting-item">
+                <input
+                  type="checkbox"
+                  checked={settings.keepScreenAwake}
+                  onChange={(event) => patchSettings({ keepScreenAwake: event.target.checked })}
+                />
+                Keep screen awake in live room
+              </label>
             </div>
             <div className="chat-log">
               {moderationLog.map((event, index) => (
@@ -1598,12 +1962,17 @@ function App() {
 
   if (currentPath === "/lobby" || !partyLive) {
     return (
-      <main className={`app app-pre-room ${themeClass} ${settings.reduceMotion ? "reduce-motion" : ""}`}>
+      <main
+        className={`app app-pre-room ${themeClass} ${settings.reduceMotion ? "reduce-motion" : ""} ${
+          settings.cinematicButtons ? "cinematic-buttons" : ""
+        } ${settings.highContrast ? "high-contrast" : ""}`}
+      >
         <div className="ambient ambient-a" />
         <div className="ambient ambient-b" />
         <section className="card pre-room-card">
           <header className="hero">
             <p className="route-pill">Step 3 / 4 • Lobby setup</p>
+            <img src={brandLogoPath} alt="KinoPulse logo" className="brand-logo" />
             <div className="hero-topline">
               <p className="eyebrow">KinoSpolu Labs • Pulse Social</p>
               <span className="hero-badge">Auto-login active for {username}</span>
@@ -1615,7 +1984,7 @@ function App() {
             <div className="status-row">
               <span className="chip chip-live">Ready to launch</span>
               <span className="chip">Service: {selectedService.name}</span>
-              <span className="chip">{SUPABASE_CONFIGURED ? "Supabase connected" : "Local mode active"}</span>
+              <span className="chip">{backendLabel}</span>
             </div>
           </header>
           <div className="pre-room-actions">
@@ -1640,12 +2009,17 @@ function App() {
   }
 
   return (
-    <main className={`app app-room ${themeClass} ${settings.reduceMotion ? "reduce-motion" : ""}`}>
+    <main
+      className={`app app-room ${themeClass} ${settings.reduceMotion ? "reduce-motion" : ""} ${
+        settings.cinematicButtons ? "cinematic-buttons" : ""
+      } ${settings.highContrast ? "high-contrast" : ""}`}
+    >
       <div className="ambient ambient-a" />
       <div className="ambient ambient-b" />
       <section className="room-shell">
         <header className="room-header">
           <p className="route-pill">Step 4 / 4 • Live room</p>
+          <img src={brandLogoPath} alt="KinoPulse logo" className="brand-logo" />
           <div className="hero-topline">
             <p className="eyebrow">KinoSpolu Labs • Pulse Social</p>
             <span className="hero-badge">Auto-login active for {username}</span>
@@ -1657,7 +2031,7 @@ function App() {
             <span className="chip">Engagement: {engagementScore}</span>
             <span className="chip">Role: {isHost ? "Host" : "Viewer"}</span>
             <span className="chip">{roomState.privateLobby ? "Private lobby" : "Public lobby"}</span>
-            <span className="chip">{SUPABASE_CONFIGURED ? "Supabase connected" : "Local mode active"}</span>
+            <span className="chip">{backendLabel}</span>
             {roomState.chatLocked && <span className="chip">Chat locked</span>}
             {roomState.slowModeSec > 0 && <span className="chip">Slow mode {roomState.slowModeSec}s</span>}
           </div>
@@ -1672,7 +2046,7 @@ function App() {
           </div>
         </header>
 
-        <section className="sticky-video">
+        <section className="sticky-video" ref={playerShellRef}>
           <h2>Sync console</h2>
           <div className="sync-metrics">
             <MetricTile label="Playback" value={roomState.playing ? "Playing" : "Paused"} />
@@ -1684,8 +2058,40 @@ function App() {
             ref={videoRef}
             src={inAppVideoUrl}
             preload="metadata"
+            playsInline
             onTimeUpdate={handleVideoTimeUpdate}
-          />
+          >
+            <track
+              kind="subtitles"
+              src="/subtitles/bigbuckbunny_en.vtt"
+              srcLang="en"
+              label="English"
+              default={settings.subtitlesEnabled}
+            />
+          </video>
+          <div className="player-utility-row">
+            <button type="button" onClick={toggleCaptions}>
+              {captionsOn ? "Subtitles ON" : "Subtitles OFF"}
+            </button>
+            <button type="button" onClick={toggleFullscreen}>
+              {isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+            </button>
+            <button type="button" onClick={togglePictureInPicture}>
+              Picture-in-picture
+            </button>
+            <button type="button" onClick={openVoiceRoom}>
+              Voice room
+            </button>
+            <button type="button" onClick={() => setVoiceTipsOpen((current) => !current)}>
+              Voice tips
+            </button>
+          </div>
+          {voiceTipsOpen && (
+            <p className="voice-tip">
+              Use headphones and push-to-talk for cleaner voice. Fast production-ready options: LiveKit,
+              Daily, Agora, or Jitsi rooms.
+            </p>
+          )}
           {effectiveService.externalOnly && (
             <p className="subtle">
               {effectiveService.name} plays via official account flow. Preview is synced companion video.
@@ -1744,7 +2150,7 @@ function App() {
               </div>
               <div className={`chat-shell ${settings.compactChat ? "compact" : ""}`}>
                 {chatMessages.map((message) => (
-                  <ChatBubble key={message.id} message={message} />
+                  <ChatBubble key={message.id} message={message} showTimestamp={settings.showTimestamps} />
                 ))}
               </div>
               <div className="quick-row">
@@ -1759,6 +2165,27 @@ function App() {
                     {spark}
                   </button>
                 ))}
+              </div>
+              <div className="emoji-strip">
+                {emojiPacks.slice(0, 10).map((emoji) => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    className="emoji-chip"
+                    onClick={() => sendEmoji(emoji)}
+                    disabled={(!rulesAccepted && !isHost) || (!!roomState.chatLocked && !isHost)}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  className="emoji-chip ai"
+                  onClick={sendAiEmoticon}
+                  disabled={(!rulesAccepted && !isHost) || (!!roomState.chatLocked && !isHost)}
+                >
+                  AI mood
+                </button>
               </div>
               <form className="inline-form" onSubmit={handleSendChat}>
                 <input

@@ -1,0 +1,27 @@
+<svg width="320" height="96" viewBox="0 0 320 96" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="kpGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#22D3EE"/>
+      <stop offset="55%" stop-color="#2D72FF"/>
+      <stop offset="100%" stop-color="#A855F7"/>
+    </linearGradient>
+    <filter id="kpGlow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="2.5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <rect x="3" y="3" width="90" height="90" rx="22" fill="#0B1320" stroke="url(#kpGrad)" stroke-width="4"/>
+  <path d="M23 23V73" stroke="url(#kpGrad)" stroke-width="8" stroke-linecap="round" filter="url(#kpGlow)"/>
+  <path d="M45 23V73" stroke="#6EE7F9" stroke-width="8" stroke-linecap="round" opacity="0.7"/>
+  <circle cx="70" cy="36" r="10" fill="#2D72FF"/>
+  <circle cx="70" cy="60" r="10" fill="#A855F7"/>
+  <path d="M63 36H77M70 29V43" stroke="#E0F2FE" stroke-width="3" stroke-linecap="round"/>
+  <path d="M63 60H77M70 53V67" stroke="#E0F2FE" stroke-width="3" stroke-linecap="round"/>
+  <g filter="url(#kpGlow)">
+    <text x="108" y="46" font-family="Inter, Arial, sans-serif" font-size="34" font-weight="800" fill="url(#kpGrad)">KinoPulse</text>
+  </g>
+  <text x="109" y="70" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="600" letter-spacing="2" fill="#9CC3FF">WATCH PARTY</text>
+</svg>

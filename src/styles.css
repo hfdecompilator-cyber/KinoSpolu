@@ -95,6 +95,21 @@ button {
   animation: button-shimmer 5.6s ease-in-out infinite;
 }
 
+.cinematic-buttons button {
+  transform-style: preserve-3d;
+  box-shadow: 0 12px 0 rgba(10, 33, 92, 0.5), 0 18px 28px rgba(45, 114, 255, 0.34);
+}
+
+.cinematic-buttons button:hover:not(:disabled) {
+  transform: translateY(-2px) rotateX(1deg);
+  box-shadow: 0 10px 0 rgba(10, 33, 92, 0.45), 0 22px 34px rgba(45, 114, 255, 0.38);
+}
+
+.cinematic-buttons button:active:not(:disabled) {
+  transform: translateY(3px) scale(0.98);
+  box-shadow: 0 5px 0 rgba(10, 33, 92, 0.5), 0 10px 18px rgba(45, 114, 255, 0.28);
+}
+
 button::after {
   content: "";
   position: absolute;
@@ -472,6 +487,12 @@ button:disabled {
   text-transform: uppercase;
 }
 
+.brand-logo {
+  width: min(260px, 62vw);
+  height: auto;
+  filter: drop-shadow(0 0 16px rgba(var(--service-accent-rgb), 0.28));
+}
+
 .status-row {
   display: flex;
   flex-wrap: wrap;
@@ -621,6 +642,26 @@ button:disabled {
     0 0 26px rgba(var(--service-accent-rgb), 0.27);
 }
 
+.player-utility-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.player-utility-row button {
+  flex: 1;
+  min-width: 130px;
+}
+
+.voice-tip {
+  border: 1px solid rgba(99, 102, 241, 0.45);
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: rgba(49, 46, 129, 0.22);
+  color: #dbeafe;
+  font-size: 0.84rem;
+}
+
 .tab-stage {
   display: grid;
   gap: 10px;
@@ -716,6 +757,27 @@ button:disabled {
   display: flex;
   flex-wrap: wrap;
   gap: 7px;
+}
+
+.emoji-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.emoji-chip {
+  border-radius: 999px;
+  min-width: 44px;
+  padding: 7px 10px;
+  box-shadow: none;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: rgba(30, 64, 175, 0.22);
+}
+
+.emoji-chip.ai {
+  min-width: 84px;
+  background: rgba(168, 85, 247, 0.26);
+  border-color: rgba(196, 181, 253, 0.52);
 }
 
 .quick {
@@ -931,6 +993,19 @@ button:disabled {
 .achievement-body {
   color: #9cc3ff;
   font-size: 0.84rem;
+}
+
+.high-contrast {
+  --text-secondary: #d5e6ff;
+  --stroke: rgba(191, 219, 254, 0.72);
+}
+
+.high-contrast .panel,
+.high-contrast .sticky-video,
+.high-contrast .sheet,
+.high-contrast .service-card,
+.high-contrast .auth-card {
+  border-color: rgba(191, 219, 254, 0.82);
 }
 
 .reduce-motion *,
