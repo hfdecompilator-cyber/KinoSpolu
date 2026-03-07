@@ -1,91 +1,60 @@
-export type StreamingService =
-  | 'netflix'
-  | 'youtube'
-  | 'spotify'
-  | 'twitch'
-  | 'prime'
-  | 'disney'
-  | 'hbo'
-  | 'apple'
-  | 'hulu'
-  | 'paramount';
+export type Service = 'youtube' | 'netflix' | 'disney' | 'prime' | 'hbo' | 'spotify' | 'twitch' | 'hulu' | 'apple' | 'paramount';
 
-export interface ServiceAuth {
-  service: StreamingService;
-  connected: boolean;
-  connectedAt: string | null;
-  username: string | null;
-}
+export const ALL_SERVICES: { id: Service; name: string; icon: string }[] = [
+  { id: 'youtube', name: 'YouTube', icon: '▶' },
+  { id: 'netflix', name: 'Netflix', icon: '🎬' },
+  { id: 'disney', name: 'Disney+', icon: '🏰' },
+  { id: 'prime', name: 'Prime Video', icon: '📦' },
+  { id: 'hbo', name: 'Max', icon: '🎭' },
+  { id: 'spotify', name: 'Spotify', icon: '🎵' },
+  { id: 'twitch', name: 'Twitch', icon: '🎮' },
+  { id: 'hulu', name: 'Hulu', icon: '📺' },
+  { id: 'apple', name: 'Apple TV+', icon: '🍎' },
+  { id: 'paramount', name: 'Paramount+', icon: '⭐' },
+];
+
+export const svcInfo = (id: Service) => ALL_SERVICES.find((s) => s.id === id) || ALL_SERVICES[0];
 
 export interface User {
   id: string;
-  username: string;
-  displayName: string;
+  name: string;
   email: string;
-  avatarUrl: string | null;
-  bio: string;
-  createdAt: string;
-  connectedServices: ServiceAuth[];
-  friends: string[];
-  partiesHosted: number;
-  partiesJoined: number;
-}
-
-export interface PartyMember {
-  userId: string;
-  username: string;
-  displayName: string;
-  avatarUrl: string | null;
-  joinedAt: string;
-  isHost: boolean;
-  isReady: boolean;
-}
-
-export interface ChatMessage {
-  id: string;
-  partyId: string;
-  userId: string;
-  username: string;
-  displayName: string;
-  avatarUrl: string | null;
-  content: string;
-  type: 'text' | 'system' | 'emoji';
+  avatar: string;
+  connectedServices: Service[];
   createdAt: string;
 }
 
-export type PartyStatus = 'waiting' | 'watching' | 'paused' | 'ended';
-export type PartyVisibility = 'public' | 'private';
-
-export interface Party {
+export interface Lobby {
   id: string;
-  name: string;
-  description: string;
+  code: string;
   hostId: string;
-  hostUsername: string;
-  hostDisplayName: string;
-  service: StreamingService;
-  contentTitle: string;
-  contentUrl: string;
-  visibility: PartyVisibility;
-  status: PartyStatus;
+  hostName: string;
+  title: string;
+  videoUrl: string;
+  videoId: string;
+  service: Service;
+  status: 'waiting' | 'playing' | 'paused' | 'ended';
+  visibility: 'private' | 'public';
+  members: LobbyMember[];
+  messages: ChatMsg[];
   maxMembers: number;
-  members: PartyMember[];
-  messages: ChatMessage[];
-  inviteCode: string;
   createdAt: string;
-  startedAt: string | null;
-  endedAt: string | null;
-  tags: string[];
-  thumbnailUrl: string;
 }
 
-export interface CreatePartyInput {
+export interface LobbyMember {
+  userId: string;
   name: string;
-  description: string;
-  service: StreamingService;
-  contentTitle: string;
-  contentUrl: string;
-  visibility: PartyVisibility;
-  maxMembers: number;
-  tags: string[];
+  avatar: string;
+  isHost: boolean;
+  joinedAt: string;
+}
+
+export interface ChatMsg {
+  id: string;
+  lobbyId: string;
+  userId: string;
+  name: string;
+  text: string;
+  ts: string;
+  type: 'user' | 'system';
 }
