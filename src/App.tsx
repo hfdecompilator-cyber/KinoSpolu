@@ -853,6 +853,16 @@ function App() {
     return mapped.length ? mapped : fallbackRecentRooms;
   }, [recentProfiles, session?.username]);
 
+  const homePrimaryServices = useMemo(
+    () => serviceCatalog.filter((service) => service.id !== "direct").slice(0, 9),
+    []
+  );
+
+  const lobbyPresenceUsers = useMemo(() => {
+    const base = [username, ...recentProfiles.filter((entry) => entry && entry !== username)];
+    return Array.from(new Set(base)).slice(0, 4);
+  }, [recentProfiles, username]);
+
   const allowedDomainStatus = useMemo(() => {
     if (!watchUrl.trim()) return "none";
     try {
@@ -2882,101 +2892,97 @@ function App() {
   if (!selectedServiceId || currentPath === "/services") {
     return (
       <main
-        className={`service-root service-home-root theme-${homeSelectedService.id} page-swipe-anim${swipeAnimationClass}`}
+        className={`service-root service-cinematic-root theme-${homeSelectedService.id} page-swipe-anim${swipeAnimationClass}`}
         onTouchStart={handleSwipeTouchStart}
         onTouchEnd={handleSwipeTouchEnd}
       >
         {backgroundVideo}
-        <section className="service-home-shell">
-          <header className="service-home-header">
-            <div>
+        <div className="cinema-room-bg" />
+        <section className="cinema-phone-shell">
+          <header className="cinema-phone-header">
+            <button type="button" className="cinema-icon-btn" aria-label="Menu">
+              ☰
+            </button>
+            <div className="cinema-brand">
               <img src={brandLogoPath} alt="KinoPulse logo" className="brand-logo" />
-              <h1>KinoPulse</h1>
-              <p>Watch party</p>
+              <strong>KinoPulseLobby</strong>
             </div>
-            <div className="service-home-status">
-              <span>Ready to launch</span>
-              <span>Projection ready</span>
-              <span>Service: {homeSelectedService.name}</span>
-            </div>
+            <span className="cinema-avatar-dot">{username.slice(0, 1)}</span>
           </header>
 
-          <div className="service-home-columns">
-            <section className="service-home-card host">
-              <p className="service-home-title">Ready to host?</p>
-              <h2>Choose your streaming host</h2>
-              <div className="service-home-matrix">
-                {serviceCatalog.map((service) => (
+          <section className="cinema-home-content">
+            <h1>CONFIGURE YOUR PRIVATE PARTY</h1>
+
+            <div className="cinema-step">
+              <h3>1. Choose Your Streaming Service</h3>
+              <div className="cinema-service-grid">
+                {homePrimaryServices.map((service) => (
                   <button
                     key={service.id}
                     type="button"
-                    className={`service-home-tile ${homeServiceId === service.id ? "active" : ""} ${
-                      service.id === "direct" ? "special" : ""
-                    }`}
-                    style={{ background: service.id === "direct" ? "rgba(49,46,129,0.95)" : service.accent }}
+                    className={`cinema-service-tile ${homeServiceId === service.id ? "active" : ""}`}
                     onClick={() => setHomeServiceId(service.id)}
+                    title={service.name}
                   >
-                    {service.id === "direct" ? (
-                      <span className="service-home-direct-label">Licensed Direct URL</span>
+                    {service.iconUrl ? (
+                      <img src={service.iconUrl} alt={service.name} loading="lazy" />
                     ) : (
-                      <span className="service-home-icon-wrap">
-                        {service.iconUrl ? (
-                          <img src={service.iconUrl} alt={`${service.name} icon`} className="service-home-icon" loading="lazy" />
-                        ) : (
-                          <span>{service.tag}</span>
-                        )}
-                      </span>
+                      <span>{service.tag}</span>
                     )}
                   </button>
                 ))}
               </div>
-              <p className="service-home-note">
-                Sync-only. Each participant uses their own service account; no rebroadcasting.
-              </p>
-              <button type="button" className="service-home-start" onClick={startRoomFromHome}>
-                [ Start New Room ]
-              </button>
-              <p className="note">Industry pattern: no rebroadcasting.</p>
-            </section>
+            </div>
 
-            <section className="service-home-card guest">
-              <p className="service-home-title">Guest</p>
-              <h2>Join a watch party</h2>
-              <label className="service-home-input-wrap">
-                Enter room code
+            <div className="cinema-step">
+              <h3>2. Enter Video Link or Search</h3>
+              <input
+                className="cinema-input"
+                value={watchUrl}
+                onChange={(event) => setWatchUrl(event.target.value)}
+                placeholder="Paste a URL or search for content..."
+              />
+            </div>
+
+            <div className="cinema-step">
+              <h3>3. Name Your Party (Optional)</h3>
+              <input
+                className="cinema-input"
+                value={mediaTitle}
+                onChange={(event) => setMediaTitle(event.target.value)}
+                placeholder="e.g., Friday Movie Night"
+              />
+            </div>
+
+            <button type="button" className="cinema-primary-cta" onClick={startRoomFromHome}>
+              🔒 Start Party &amp; Get Invite Link
+            </button>
+
+            <details className="cinema-join-details">
+              <summary>Already have invite code?</summary>
+              <div className="cinema-join-row">
                 <input
+                  className="cinema-input"
                   value={roomCode}
                   onChange={(event) => setRoomCode(event.target.value.toUpperCase())}
                   placeholder="PULSE"
                 />
-              </label>
-              <div className="service-home-guest-actions">
+                <button type="button" onClick={() => runQuickJoinFromHome()}>
+                  Join
+                </button>
                 <button type="button" onClick={pasteRoomCodeFromClipboard}>
                   Paste
                 </button>
-                <button type="button" onClick={() => runQuickJoinFromHome()}>
-                  [ Join Room ]
-                </button>
               </div>
-              <h3>Recent rooms</h3>
-              <div className="service-home-recent">
-                {recentRoomCards.map((room) => (
-                  <article key={`${room.roomCode}-${room.serviceId}`} className="service-home-recent-card">
-                    <div className="service-home-recent-thumb" style={{ background: room.serviceAccent }}>
-                      {room.serviceTag}
-                    </div>
-                    <div className="service-home-recent-meta">
-                      <strong>{room.title}</strong>
-                      <span>{room.subtitle}</span>
-                    </div>
-                    <button type="button" onClick={() => rejoinRecentRoom(room)}>
-                      Rejoin
-                    </button>
-                  </article>
+              <div className="cinema-recent-pills">
+                {recentRoomCards.slice(0, 2).map((room) => (
+                  <button key={room.roomCode} type="button" onClick={() => rejoinRecentRoom(room)}>
+                    {room.roomCode}
+                  </button>
                 ))}
               </div>
-            </section>
-          </div>
+            </details>
+          </section>
         </section>
       </main>
     );
@@ -3793,33 +3799,38 @@ function App() {
   if (currentPath === "/lobby" || !partyLive) {
     return (
       <main
-        className={`app app-pre-room viewport-lock page-swipe-anim${swipeAnimationClass} ${themeClass} ${
+        className={`app app-pre-room lobby-cinematic-root viewport-lock page-swipe-anim${swipeAnimationClass} ${themeClass} ${
           settings.reduceMotion ? "reduce-motion" : ""
         } ${settings.cinematicButtons ? "cinematic-buttons" : ""} ${settings.highContrast ? "high-contrast" : ""}`}
         onTouchStart={handleSwipeTouchStart}
         onTouchEnd={handleSwipeTouchEnd}
       >
         {backgroundVideo}
-        <div className="ambient ambient-a" />
-        <div className="ambient ambient-b" />
-        <section className="card pre-room-card compact-page-shell">
-          <header className="hero">
-            <p className="route-pill">Step 3 / 4 • Lobby setup</p>
-            <div className="hero-topline">
+        <div className="cinema-room-bg" />
+        <section className="cinema-phone-shell cinema-lobby-shell">
+          <header className="cinema-phone-header">
+            <button type="button" className="cinema-icon-btn" aria-label="Menu">
+              ☰
+            </button>
+            <div className="cinema-brand">
               <img src={brandLogoPath} alt="KinoPulse logo" className="brand-logo" />
-              <span className="hero-badge">Auto-login active for {username}</span>
+              <strong>KinoPulseLobby</strong>
             </div>
-            <div className="status-row">
-              <span className="chip chip-live">Ready to launch</span>
-              <span className="chip">Service: {selectedService.name}</span>
-              <span className="chip">{backendLabel}</span>
-            </div>
+            <span className="cinema-avatar-dot">{username.slice(0, 1)}</span>
           </header>
-          <section className="sticky-video lobby-preview lobby-media-lock">
-            <h2>Top preview player</h2>
-            <p className="subtle">
-              HEARO-style simple mode: preview stays dominant; advanced controls open from floating tools.
-            </p>
+
+          <p className="cinema-lobby-title">YOUR PRIVATE PARTY LOBBY</p>
+
+          <section className="cinema-presence-row">
+            {lobbyPresenceUsers.map((member, index) => (
+              <article key={member} className={`cinema-presence-chip ${index === 0 ? "host" : ""}`}>
+                <span>{member.slice(0, 2).toUpperCase()}</span>
+                <small>{index === 0 ? "HOST" : "Inviting..."}</small>
+              </article>
+            ))}
+          </section>
+
+          <section className="cinema-lobby-player">
             {youtubeEmbedPreview ? (
               <iframe
                 className="video-stage lobby-video-stage"
@@ -3829,28 +3840,44 @@ function App() {
                 allowFullScreen
               />
             ) : (
-              <video className="video-stage lobby-video-stage" src={lobbyPreviewUrl} controls playsInline muted />
+              <video className="video-stage lobby-video-stage" src={lobbyPreviewUrl} playsInline muted controls />
             )}
-            {selectedService.externalOnly && (
-              <p className="subtle">
-                External-service policy mode: official provider pages handle playback rights; preview remains in-app.
-              </p>
-            )}
+            <div className="cinema-player-controls">
+              <button type="button">⏮</button>
+              <button type="button">⏯</button>
+              <button type="button">⏭</button>
+            </div>
           </section>
-          {LobbyQuickStart}
+
+          <section className="cinema-chat-preview">
+            <h3>Party Chat</h3>
+            <div className="cinema-chat-lines">
+              {chatMessages.slice(0, 4).map((message) => (
+                <p key={`lobby-${message.id}`}>
+                  <strong>{message.user}:</strong> {message.text}
+                </p>
+              ))}
+            </div>
+          </section>
+
+          <button type="button" className="cinema-manage-btn" onClick={() => setLobbyToolsOpen((open) => !open)}>
+            {lobbyToolsOpen ? "Hide Lobby Settings" : "Manage Lobby & Invite"}
+          </button>
+
           {lobbyToolsOpen && (
-            <aside className="floating-panel floating-panel-inline" role="dialog" aria-label="Lobby tools">
+            <aside className="floating-panel floating-panel-inline cinema-lobby-panel" role="dialog" aria-label="Lobby settings">
               <div className="floating-panel-head">
                 <h3>Lobby settings</h3>
                 <button type="button" onClick={() => setLobbyToolsOpen(false)}>
                   Close
                 </button>
               </div>
+              {LobbyQuickStart}
               {RoomComposer}
             </aside>
           )}
         </section>
-        <div className="floating-dock">
+        <div className="floating-dock floating-dock-lobby">
           <button type="button" className={lobbyToolsOpen ? "active" : ""} onClick={() => setLobbyToolsOpen((v) => !v)}>
             {lobbyToolsOpen ? "Hide settings" : "Settings"}
           </button>

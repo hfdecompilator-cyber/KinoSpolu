@@ -195,6 +195,328 @@ button:disabled {
   overflow: hidden;
 }
 
+.service-cinematic-root,
+.lobby-cinematic-root {
+  --app-frame-max: 390px;
+  background: radial-gradient(circle at 20% 26%, rgba(245, 158, 11, 0.25), transparent 38%),
+    radial-gradient(circle at 82% 75%, rgba(59, 130, 246, 0.22), transparent 36%), #06080f;
+}
+
+.service-cinematic-root .app-bg-video,
+.lobby-cinematic-root .app-bg-video {
+  opacity: 0.08;
+  filter: blur(2px) saturate(0.95) brightness(0.55);
+}
+
+.cinema-room-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: radial-gradient(circle at 52% 44%, rgba(251, 191, 36, 0.18), transparent 36%),
+    radial-gradient(circle at 48% 68%, rgba(249, 115, 22, 0.16), transparent 34%),
+    linear-gradient(180deg, rgba(8, 11, 20, 0.48), rgba(6, 8, 15, 0.78));
+  pointer-events: none;
+}
+
+.cinema-phone-shell {
+  width: min(390px, calc(100vw - 18px));
+  height: min(850px, calc(100svh - 18px));
+  border-radius: 34px;
+  border: 1px solid rgba(187, 201, 230, 0.36);
+  background: linear-gradient(180deg, rgba(11, 15, 26, 0.94), rgba(7, 10, 20, 0.95));
+  box-shadow: 0 22px 56px rgba(2, 4, 12, 0.72), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  padding: 12px 12px 16px;
+  z-index: 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
+}
+
+.cinema-phone-header {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.cinema-icon-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(155deg, rgba(148, 163, 184, 0.24), rgba(51, 65, 85, 0.18));
+  border: 1px solid rgba(214, 227, 247, 0.34);
+  box-shadow: none;
+  animation: none;
+}
+
+.cinema-brand {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.cinema-brand .brand-logo {
+  width: 28px;
+  height: 28px;
+}
+
+.cinema-brand strong {
+  color: #e6edf9;
+  font-size: 0.95rem;
+  letter-spacing: 0.01em;
+}
+
+.cinema-avatar-dot {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  border: 1px solid rgba(191, 219, 254, 0.42);
+  background: linear-gradient(155deg, rgba(100, 116, 139, 0.5), rgba(51, 65, 85, 0.32));
+  display: grid;
+  place-items: center;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #eaf1ff;
+}
+
+.cinema-home-content {
+  display: grid;
+  gap: 10px;
+  min-height: 0;
+}
+
+.cinema-home-content h1 {
+  font-size: 2.05rem;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  color: #f5f7fc;
+  text-transform: uppercase;
+}
+
+.cinema-step {
+  display: grid;
+  gap: 6px;
+}
+
+.cinema-step h3 {
+  font-size: 0.9rem;
+  color: #e8edf7;
+  letter-spacing: 0.01em;
+}
+
+.cinema-service-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.cinema-service-tile {
+  height: 46px;
+  border-radius: 12px;
+  border: 1px solid rgba(189, 205, 231, 0.36);
+  background: linear-gradient(155deg, rgba(30, 41, 59, 0.68), rgba(15, 23, 42, 0.58));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 8px 16px rgba(4, 8, 19, 0.42);
+  animation: none;
+  padding: 0;
+  display: grid;
+  place-items: center;
+}
+
+.cinema-service-tile img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.42));
+}
+
+.cinema-service-tile.active {
+  border-color: rgba(56, 189, 248, 0.78);
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.45), 0 0 16px rgba(56, 189, 248, 0.3);
+}
+
+.cinema-input {
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.42);
+  background: linear-gradient(160deg, rgba(30, 41, 59, 0.58), rgba(15, 23, 42, 0.5));
+  color: #f5f8ff;
+  padding: 11px 12px;
+  font-size: 0.9rem;
+}
+
+.cinema-primary-cta {
+  margin-top: 2px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #1d7df5, #2d72ff, #22d3ee);
+  border: 1px solid rgba(191, 219, 254, 0.62);
+  box-shadow: 0 14px 24px rgba(16, 88, 200, 0.42);
+  font-size: 0.95rem;
+  animation: none;
+}
+
+.cinema-join-details {
+  border: 1px solid rgba(100, 116, 139, 0.5);
+  border-radius: 12px;
+  padding: 8px;
+  background: rgba(8, 12, 24, 0.62);
+}
+
+.cinema-join-details > summary {
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: #9db3d4;
+}
+
+.cinema-join-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 7px;
+  margin-top: 8px;
+}
+
+.cinema-recent-pills {
+  margin-top: 7px;
+  display: flex;
+  gap: 6px;
+}
+
+.cinema-recent-pills button {
+  min-width: 0;
+  padding: 6px 9px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+}
+
+.cinema-lobby-shell {
+  gap: 8px;
+}
+
+.cinema-lobby-title {
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #cfd9eb;
+}
+
+.cinema-presence-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.cinema-presence-chip {
+  border-radius: 11px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  background: rgba(30, 41, 59, 0.45);
+  padding: 7px 4px;
+  text-align: center;
+  display: grid;
+  gap: 3px;
+}
+
+.cinema-presence-chip span {
+  font-weight: 700;
+  color: #e7edf8;
+  font-size: 0.78rem;
+}
+
+.cinema-presence-chip small {
+  font-size: 0.64rem;
+  color: #9db3d4;
+}
+
+.cinema-presence-chip.host {
+  border-color: rgba(34, 197, 94, 0.62);
+}
+
+.cinema-lobby-player {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.cinema-lobby-player .video-stage {
+  min-height: clamp(130px, 24svh, 220px);
+}
+
+.cinema-player-controls {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  gap: 8px;
+}
+
+.cinema-player-controls button {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(226, 232, 240, 0.42);
+  box-shadow: 0 8px 16px rgba(2, 6, 15, 0.48);
+  animation: none;
+}
+
+.cinema-chat-preview {
+  border: 1px solid rgba(100, 116, 139, 0.45);
+  border-radius: 12px;
+  background: rgba(10, 15, 26, 0.72);
+  padding: 9px;
+  display: grid;
+  gap: 6px;
+  min-height: 0;
+}
+
+.cinema-chat-preview h3 {
+  color: #f3f7ff;
+  font-size: 1rem;
+}
+
+.cinema-chat-lines {
+  display: grid;
+  gap: 6px;
+  max-height: 110px;
+  overflow: auto;
+}
+
+.cinema-chat-lines p {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #d5deef;
+}
+
+.cinema-manage-btn {
+  border-radius: 14px;
+  background: linear-gradient(135deg, #f97316, #fb923c, #f59e0b);
+  border: 1px solid rgba(254, 215, 170, 0.74);
+  box-shadow: 0 14px 24px rgba(124, 45, 18, 0.42);
+  animation: none;
+}
+
+.floating-dock-lobby {
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  bottom: max(16px, env(safe-area-inset-bottom));
+}
+
+.floating-dock-lobby button {
+  min-width: 220px;
+}
+
+.cinema-lobby-panel {
+  max-height: min(62svh, 560px);
+}
+
 .service-root::before,
 .auth-root::before,
 .app::before {
