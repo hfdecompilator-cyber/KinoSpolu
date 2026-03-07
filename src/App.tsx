@@ -10,6 +10,7 @@ import {
 } from "react";
 import { flushSync } from "react-dom";
 import { Browser } from "@capacitor/browser";
+import ArgonEmbers from "./ArgonEmbers";
 import { Capacitor } from "@capacitor/core";
 import {
   createClient,
@@ -310,6 +311,17 @@ const participantProfiles = [
   { name: "Mira", mood: "hype" },
   { name: "Axel", mood: "focus" },
   { name: "Juno", mood: "chill" }
+];
+
+const trendingContent = [
+  { title: "Midnight Protocol", genre: "Sci-Fi", serviceTag: "N", parties: 47, hot: true, gradient: "linear-gradient(145deg, #1a0a2e, #e50914)" },
+  { title: "Ocean's Echo", genre: "Drama", serviceTag: "P", parties: 31, hot: true, gradient: "linear-gradient(145deg, #0a1628, #00a8e1)" },
+  { title: "Shadow Realm", genre: "Fantasy", serviceTag: "D+", parties: 22, hot: true, gradient: "linear-gradient(145deg, #0a0e2d, #113ccf)" },
+  { title: "Neon Drift", genre: "Action", serviceTag: "M", parties: 18, hot: false, gradient: "linear-gradient(145deg, #120a28, #5e3bff)" },
+  { title: "The Last Signal", genre: "Thriller", serviceTag: "H", parties: 15, hot: false, gradient: "linear-gradient(145deg, #041a0a, #1ce783)" },
+  { title: "Cipher Break", genre: "Mystery", serviceTag: "P+", parties: 12, hot: false, gradient: "linear-gradient(145deg, #0a1030, #0078ff)" },
+  { title: "Starfall", genre: "Anime", serviceTag: "CR", parties: 28, hot: true, gradient: "linear-gradient(145deg, #1a0a06, #f47521)" },
+  { title: "Live Arena", genre: "Live", serviceTag: "TW", parties: 34, hot: true, gradient: "linear-gradient(145deg, #140a28, #9146ff)" },
 ];
 
 const quickSparkMessages = ["That cut was wild", "Sync is perfect now", "Drop another banger"];
@@ -2524,6 +2536,7 @@ function App() {
   if (!selectedServiceId || currentPath === "/services") {
     return (
       <main className={`service-root service-home-root theme-${homeSelectedService.id}`}>
+        <ArgonEmbers />
         <section className="service-home-shell">
           <header className="service-home-header">
             <div>
@@ -2538,73 +2551,103 @@ function App() {
             </div>
           </header>
 
-          <div className="service-home-columns">
-            <section className="service-home-card host">
-              <p className="service-home-title">Ready to host?</p>
-              <h2>Choose your streaming host</h2>
-              <div className="service-home-matrix">
-                {serviceCatalog.map((service) => (
-                  <button
-                    key={service.id}
-                    type="button"
-                    className={`service-home-tile ${homeServiceId === service.id ? "active" : ""} ${
-                      service.id === "direct" ? "special" : ""
-                    }`}
-                    style={{ background: service.id === "direct" ? "rgba(49,46,129,0.95)" : service.accent }}
-                    onClick={() => setHomeServiceId(service.id)}
+          <div style={{ minHeight: 0, display: "grid", gap: "10px", gridTemplateRows: "auto 1fr", overflow: "hidden" }}>
+            <section className="argon-trending-section">
+              <div className="argon-trending-header">
+                <span className="argon-section-title">Trending Parties</span>
+                <span style={{ fontSize: "0.66rem", color: "var(--text-secondary)" }}>{trendingContent.reduce((sum, c) => sum + c.parties, 0)} active</span>
+              </div>
+              <div className="argon-poster-scroll">
+                {trendingContent.map((item) => (
+                  <article
+                    key={item.title}
+                    className="argon-poster-card"
+                    style={{ background: item.gradient }}
+                    onClick={() => {
+                      const service = serviceCatalog.find((s) => s.tag === item.serviceTag);
+                      if (service) setHomeServiceId(service.id);
+                    }}
                   >
-                    {service.id === "direct" ? "Licensed\nDirect URL" : service.tag}
-                  </button>
-                ))}
-              </div>
-              <p className="service-home-note">
-                Sync-only. Each participant uses their own service account; no rebroadcasting.
-              </p>
-              <button type="button" className="service-home-start" onClick={startRoomFromHome}>
-                [ Start New Room ]
-              </button>
-              <p className="note">Industry pattern: no rebroadcasting.</p>
-            </section>
-
-            <section className="service-home-card guest">
-              <p className="service-home-title">Guest</p>
-              <h2>Join a watch party</h2>
-              <label className="service-home-input-wrap">
-                Enter room code
-                <input
-                  value={roomCode}
-                  onChange={(event) => setRoomCode(event.target.value.toUpperCase())}
-                  placeholder="PULSE"
-                />
-              </label>
-              <div className="service-home-guest-actions">
-                <button type="button" onClick={pasteRoomCodeFromClipboard}>
-                  Paste
-                </button>
-                <button type="button" onClick={() => runQuickJoinFromHome()}>
-                  [ Join Room ]
-                </button>
-              </div>
-              <h3>Recent rooms</h3>
-              <div className="service-home-recent">
-                {recentRoomCards.map((room) => (
-                  <article key={`${room.roomCode}-${room.serviceId}`} className="service-home-recent-card">
-                    <div className="service-home-recent-thumb" style={{ background: room.serviceAccent }}>
-                      {room.serviceTag}
+                    {item.hot && <span className="argon-hot-badge">HOT</span>}
+                    <div className="argon-poster-info">
+                      <span className="argon-poster-service">{item.serviceTag}</span>
+                      <h3>{item.title}</h3>
+                      <p>{item.parties} parties • {item.genre}</p>
                     </div>
-                    <div className="service-home-recent-meta">
-                      <strong>{room.title}</strong>
-                      <span>{room.subtitle}</span>
-                    </div>
-                    <button type="button" onClick={() => rejoinRecentRoom(room)}>
-                      Rejoin
-                    </button>
                   </article>
                 ))}
               </div>
             </section>
+
+            <div className="service-home-columns">
+              <section className="service-home-card host">
+                <p className="service-home-title">Ready to host?</p>
+                <h2>Choose your streaming host</h2>
+                <div className="service-home-matrix">
+                  {serviceCatalog.map((service) => (
+                    <button
+                      key={service.id}
+                      type="button"
+                      className={`service-home-tile ${homeServiceId === service.id ? "active" : ""} ${
+                        service.id === "direct" ? "special" : ""
+                      }`}
+                      style={{ background: service.id === "direct" ? "rgba(49,46,129,0.95)" : service.accent }}
+                      onClick={() => setHomeServiceId(service.id)}
+                    >
+                      {service.id === "direct" ? "Licensed\nDirect URL" : service.tag}
+                    </button>
+                  ))}
+                </div>
+                <p className="service-home-note">
+                  Sync-only. Each participant uses their own service account; no rebroadcasting.
+                </p>
+                <button type="button" className="service-home-start" onClick={startRoomFromHome}>
+                  [ Start New Room ]
+                </button>
+                <p className="note">Industry pattern: no rebroadcasting.</p>
+              </section>
+
+              <section className="service-home-card guest">
+                <p className="service-home-title">Guest</p>
+                <h2>Join a watch party</h2>
+                <label className="service-home-input-wrap">
+                  Enter room code
+                  <input
+                    value={roomCode}
+                    onChange={(event) => setRoomCode(event.target.value.toUpperCase())}
+                    placeholder="PULSE"
+                  />
+                </label>
+                <div className="service-home-guest-actions">
+                  <button type="button" onClick={pasteRoomCodeFromClipboard}>
+                    Paste
+                  </button>
+                  <button type="button" onClick={() => runQuickJoinFromHome()}>
+                    [ Join Room ]
+                  </button>
+                </div>
+                <h3>Recent rooms</h3>
+                <div className="service-home-recent">
+                  {recentRoomCards.map((room) => (
+                    <article key={`${room.roomCode}-${room.serviceId}`} className="service-home-recent-card">
+                      <div className="service-home-recent-thumb" style={{ background: room.serviceAccent }}>
+                        {room.serviceTag}
+                      </div>
+                      <div className="service-home-recent-meta">
+                        <strong>{room.title}</strong>
+                        <span>{room.subtitle}</span>
+                      </div>
+                      <button type="button" onClick={() => rejoinRecentRoom(room)}>
+                        Rejoin
+                      </button>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            </div>
           </div>
         </section>
+        <button type="button" className="argon-fab" onClick={startRoomFromHome} title="Create Room">+</button>
       </main>
     );
   }
@@ -2612,6 +2655,7 @@ function App() {
   if (!session || currentPath === "/auth") {
     return (
       <main className={`auth-root ${themeClass}`}>
+        <ArgonEmbers />
         <section className="auth-card compact-page-shell">
           <p className="route-pill">Step 2 / 4 • Authentication</p>
           <img src={brandLogoPath} alt="KinoPulse logo" className="brand-logo" />
@@ -2727,6 +2771,7 @@ function App() {
           settings.cinematicButtons ? "cinematic-buttons" : ""
         } ${settings.highContrast ? "high-contrast" : ""}`}
       >
+        <ArgonEmbers />
         <div className="ambient ambient-a" />
         <div className="ambient ambient-b" />
         <section className="card compact-page-shell utility-page-card">
@@ -2812,6 +2857,7 @@ function App() {
           settings.cinematicButtons ? "cinematic-buttons" : ""
         } ${settings.highContrast ? "high-contrast" : ""}`}
       >
+        <ArgonEmbers />
         <div className="ambient ambient-a" />
         <div className="ambient ambient-b" />
         <section className="card compact-page-shell utility-page-card">
@@ -3350,6 +3396,7 @@ function App() {
           settings.cinematicButtons ? "cinematic-buttons" : ""
         } ${settings.highContrast ? "high-contrast" : ""}`}
       >
+        <ArgonEmbers />
         <div className="ambient ambient-a" />
         <div className="ambient ambient-b" />
         <section className="card pre-room-card compact-page-shell">
@@ -3414,6 +3461,7 @@ function App() {
         settings.cinematicButtons ? "cinematic-buttons" : ""
       } ${settings.highContrast ? "high-contrast" : ""}`}
     >
+      <ArgonEmbers />
       <div className="ambient ambient-a" />
       <div className="ambient ambient-b" />
       <section className="room-shell compact-page-shell">
