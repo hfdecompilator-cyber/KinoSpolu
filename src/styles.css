@@ -157,6 +157,342 @@ button:disabled {
   cursor: not-allowed;
 }
 
+.cinematic-root {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background:
+    radial-gradient(circle at 18% 28%, rgba(245, 158, 11, 0.22), transparent 34%),
+    radial-gradient(circle at 82% 74%, rgba(96, 165, 250, 0.2), transparent 33%),
+    linear-gradient(130deg, #090f1e 0%, #161a2a 45%, #1f1521 100%);
+  overflow: hidden;
+  position: relative;
+}
+
+.cinematic-room-glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 20% 42%, rgba(249, 115, 22, 0.2), transparent 36%),
+    radial-gradient(circle at 78% 55%, rgba(251, 191, 36, 0.16), transparent 34%);
+  filter: blur(18px);
+}
+
+.phone-frame {
+  width: min(390px, 92vw);
+  aspect-ratio: 9/19;
+  border-radius: 42px;
+  padding: 8px;
+  background: linear-gradient(160deg, #05080f, #111827);
+  border: 1px solid rgba(148, 163, 184, 0.55);
+  box-shadow:
+    0 34px 64px rgba(3, 7, 18, 0.7),
+    0 0 0 1px rgba(15, 23, 42, 0.8);
+  position: relative;
+  z-index: 1;
+}
+
+.phone-notch {
+  position: absolute;
+  left: 50%;
+  top: 10px;
+  transform: translateX(-50%);
+  width: 120px;
+  height: 24px;
+  border-radius: 999px;
+  background: rgba(2, 6, 23, 0.9);
+  z-index: 5;
+}
+
+.phone-screen {
+  height: 100%;
+  border-radius: 34px;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: linear-gradient(185deg, rgba(6, 10, 20, 0.97), rgba(8, 15, 30, 0.94));
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+
+.phone-topbar {
+  height: 52px;
+  padding: 18px 12px 8px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid rgba(71, 85, 105, 0.5);
+  background: rgba(5, 10, 20, 0.7);
+}
+
+.phone-icon-btn,
+.phone-avatar-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.6);
+  background: rgba(15, 23, 42, 0.7);
+  box-shadow: none;
+  font-size: 0.78rem;
+  padding: 0;
+}
+
+.phone-avatar-btn {
+  font-weight: 700;
+}
+
+.phone-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font-weight: 700;
+  color: #e2ecff;
+  font-size: 0.9rem;
+}
+
+.phone-brand-logo {
+  width: 14px;
+  height: 14px;
+}
+
+.phone-content {
+  min-height: 0;
+  overflow: auto;
+  padding: 10px;
+}
+
+.phone-panel {
+  border-radius: 18px;
+  border: 1px solid rgba(100, 116, 139, 0.42);
+  background: linear-gradient(165deg, rgba(7, 13, 25, 0.96), rgba(10, 18, 34, 0.95));
+  padding: 11px;
+  display: grid;
+  gap: 10px;
+}
+
+.phone-panel-lobby h1,
+.phone-panel-room h2 {
+  margin: 0;
+  line-height: 1.1;
+  font-size: 1.84rem;
+  letter-spacing: 0.02em;
+}
+
+.phone-panel-room h2 {
+  font-size: 1.02rem;
+}
+
+.phone-step {
+  display: grid;
+  gap: 7px;
+}
+
+.phone-step p {
+  margin: 0;
+  color: #e3edf9;
+  font-size: 0.87rem;
+  font-weight: 600;
+}
+
+.phone-step input {
+  border-radius: 10px;
+  border-color: rgba(100, 116, 139, 0.8);
+  background: rgba(11, 17, 31, 0.92);
+  padding: 9px 11px;
+  font-size: 0.84rem;
+}
+
+.phone-service-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.phone-service-tile {
+  height: 46px;
+  border-radius: 11px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: rgba(30, 41, 59, 0.74);
+  box-shadow: none;
+  font-size: 0.9rem;
+  font-weight: 700;
+  padding: 0;
+}
+
+.phone-service-tile.active {
+  border-color: rgba(var(--service-accent-rgb), 0.9);
+  box-shadow:
+    0 0 0 1px rgba(var(--service-accent-rgb), 0.42),
+    0 0 16px rgba(var(--service-accent-rgb), 0.28);
+  background: rgba(var(--service-accent-rgb), 0.2);
+}
+
+.phone-launch-row {
+  margin-top: 2px;
+}
+
+.phone-primary-cta {
+  width: 100%;
+  border-radius: 999px;
+  padding: 11px 14px;
+  font-size: 0.9rem;
+}
+
+.phone-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.72rem;
+  color: #9fb5d1;
+}
+
+.phone-meta-row button {
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 0.72rem;
+  box-shadow: none;
+}
+
+.phone-participant-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.phone-participant {
+  border-radius: 11px;
+  border: 1px solid rgba(71, 85, 105, 0.72);
+  background: rgba(9, 16, 28, 0.82);
+  padding: 6px 4px;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  font-size: 0.64rem;
+  color: #9fb3cc;
+}
+
+.phone-participant .avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: rgba(71, 85, 105, 0.9);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.phone-participant.host .avatar {
+  background: linear-gradient(130deg, #fb923c, #f59e0b);
+}
+
+.phone-video-wrap {
+  border-radius: 14px;
+  border: 1px solid rgba(100, 116, 139, 0.7);
+  background: rgba(2, 6, 15, 0.8);
+  padding: 8px;
+  display: grid;
+  gap: 7px;
+}
+
+.phone-video-stage {
+  width: 100%;
+  aspect-ratio: 16/9;
+  border-radius: 10px;
+  border: 1px solid rgba(71, 85, 105, 0.82);
+  background: #010409;
+}
+
+.phone-player-controls {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.phone-player-controls button {
+  min-width: 44px;
+  border-radius: 999px;
+  padding: 6px 10px;
+  box-shadow: none;
+}
+
+.phone-player-timing {
+  margin: 0;
+  font-size: 0.68rem;
+  color: #cddcf0;
+  text-align: center;
+}
+
+.phone-chat-wrap {
+  display: grid;
+  gap: 7px;
+}
+
+.phone-chat-wrap h3 {
+  margin: 0;
+  font-size: 1.02rem;
+}
+
+.phone-chat-list {
+  display: grid;
+  gap: 6px;
+}
+
+.phone-chat-bubble {
+  border-radius: 10px;
+  border: 1px solid rgba(100, 116, 139, 0.6);
+  background: rgba(24, 24, 27, 0.78);
+  padding: 6px 8px;
+}
+
+.phone-chat-bubble p {
+  margin: 0;
+  font-size: 0.68rem;
+  color: #bccbdf;
+}
+
+.phone-chat-bubble span {
+  font-size: 0.86rem;
+  color: #eef4ff;
+}
+
+.phone-chat-bubble.own {
+  border-color: rgba(96, 165, 250, 0.8);
+  background: rgba(30, 64, 175, 0.3);
+}
+
+.phone-chat-form {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 7px;
+}
+
+.phone-chat-form input {
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-size: 0.82rem;
+}
+
+.phone-chat-form button {
+  border-radius: 999px;
+  padding: 8px 12px;
+  box-shadow: none;
+}
+
+.phone-manage-cta {
+  width: 100%;
+  border-radius: 999px;
+  padding: 11px 14px;
+  background: linear-gradient(130deg, #f97316, #fb923c, #f59e0b);
+  border: 1px solid rgba(254, 215, 170, 0.7);
+  box-shadow: 0 10px 20px rgba(249, 115, 22, 0.35);
+}
+
 .service-root,
 .auth-root {
   min-height: 100vh;
