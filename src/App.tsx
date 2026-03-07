@@ -2522,451 +2522,6 @@ function App() {
     };
   }, []);
 
-  if (!selectedServiceId || currentPath === "/services") {
-    const topServices = ["netflix", "prime", "max", "disney", "appletv", "youtube", "paramount", "peacock"];
-    const displayServices = serviceCatalog.filter((s) => topServices.includes(s.id));
-    return (
-      <div className="popcorn-app popcorn-configure">
-        <div className="popcorn-particles">
-          {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-            <div key={i} className="popcorn-particle" />
-          ))}
-        </div>
-        <header className="popcorn-header popcorn-header-main">
-          <div className="popcorn-header-left">
-            <button type="button" className="popcorn-hamburger" onClick={() => setSettingsOpen(true)} aria-label="Menu">
-              <span />
-              <span />
-              <span />
-            </button>
-            <div className="popcorn-brand">
-              <img src={popcornLogoPath} alt="PopcornLobby" />
-              <span>PopcornLobby</span>
-            </div>
-          </div>
-          <div className="popcorn-avatar" title={username || "Profile"}>
-            {(username || "U").charAt(0).toUpperCase()}
-          </div>
-        </header>
-        <div className="popcorn-configure-content">
-          <h1 className="popcorn-configure-title">CONFIGURE YOUR PRIVATE PARTY</h1>
-          <p className="popcorn-section-title">1. Choose Your Streaming Service</p>
-          <div className="popcorn-service-grid">
-            {displayServices.map((service) => (
-              <button
-                key={service.id}
-                type="button"
-                className={`popcorn-service-icon ${homeServiceId === service.id ? "selected" : ""}`}
-                style={{ background: homeServiceId === service.id ? service.accent : undefined }}
-                onClick={() => setHomeServiceId(service.id)}
-              >
-                {service.tag}
-              </button>
-            ))}
-            <button
-              type="button"
-              className="popcorn-service-icon more"
-              onClick={() => {
-                const rest = serviceCatalog.filter((s) => !topServices.includes(s.id));
-                const idx = rest.findIndex((s) => s.id === homeServiceId);
-                setHomeServiceId(rest[(idx + 1) % Math.max(1, rest.length)]?.id ?? rest[0]?.id ?? homeServiceId);
-              }}
-            >
-              …
-            </button>
-          </div>
-          <p className="popcorn-section-title">2. Enter Video Link or Search</p>
-          <div className="popcorn-search-wrap">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="11" cy="11" r="8" />
-              <path d="m21 21-4.35-4.35" />
-            </svg>
-            <input
-              value={watchUrl}
-              onChange={(e) => setWatchUrl(e.target.value)}
-              placeholder="Paste a URL or search for content..."
-            />
-          </div>
-          <p className="popcorn-section-title">3. Name Your Party (Optional)</p>
-          <input
-            value={mediaTitle}
-            onChange={(e) => setMediaTitle(e.target.value)}
-            placeholder="e.g., Friyay Movie Night"
-          />
-          <button type="button" className="popcorn-start-btn" onClick={startRoomFromHome}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="3" y="11" width="18" height="11" rx="2" />
-              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-            </svg>
-            Start Party & Get Invite Link
-          </button>
-          <div style={{ marginTop: 20, display: "flex", gap: 8, alignItems: "center" }}>
-            <input
-              value={roomCode}
-              onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
-              placeholder="Room code"
-              style={{ flex: 1, maxWidth: 120 }}
-            />
-            <button type="button" onClick={pasteRoomCodeFromClipboard} style={{ padding: "8px 12px" }}>
-              Paste
-            </button>
-            <button type="button" onClick={() => runQuickJoinFromHome()} style={{ padding: "8px 16px" }}>
-              Join party
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!session || currentPath === "/auth") {
-    return (
-      <main className={`auth-root ${themeClass}`}>
-        <section className="auth-card compact-page-shell">
-          <p className="route-pill">Step 2 / 4 • Authentication</p>
-          <img src={brandLogoPath} alt="KinoPulse logo" className="brand-logo" />
-          <h1>KinoPulse Rooms</h1>
-          <p className="subtle">
-            Selected: <strong>{selectedService.name}</strong>. Secure in-app authentication starts below.
-          </p>
-          <section className="auth-fast-lane">
-            <h3>Fast lane</h3>
-            <p className="subtle">
-              One tap opens official {selectedService.name} auth, then returns here and continues automatically.
-            </p>
-            <div className="button-row">
-              <button
-                type="button"
-                className="browser-cta"
-                onClick={serviceConnected ? continueInstantly : startServiceSignIn}
-              >
-                {serviceConnected ? `Continue as ${recommendedAuthProfile}` : `One-tap ${selectedService.name} sign-in`}
-              </button>
-              <button type="button" onClick={openServiceCatalog}>
-                Open {selectedService.name} app/home
-              </button>
-            </div>
-            {authInfo && <p className="ok">{authInfo}</p>}
-            {selectedService.id === "youtube" && (
-              <p className="note">
-                YouTube fast path: sign in, open/copy video link, return — lobby auto-fills and launches quicker.
-              </p>
-            )}
-          </section>
-
-          <details className="auth-browser-card auth-advanced">
-            <summary>Advanced options / fallback</summary>
-            <div className="auth-browser-head">
-              <h3>{selectedService.name} secure sign-in</h3>
-              <span className={`chip ${serviceConnected ? "chip-safe" : ""}`}>
-                {serviceConnected ? "Connected" : "Pending"}
-              </span>
-            </div>
-            <p className="subtle">
-              We open the official provider page in a secure browser tab. KinoPulse never captures your
-              credentials.
-            </p>
-            <ol className="auth-steps">
-              <li>Open official sign-in tab.</li>
-              <li>Authenticate directly with {selectedService.name}.</li>
-              <li>Return to KinoPulse — we auto-continue to lobby.</li>
-            </ol>
-            <div className="button-row">
-              <button type="button" className="browser-cta" onClick={startServiceSignIn}>
-                One-tap secure sign-in
-              </button>
-              <button
-                type="button"
-                onClick={confirmServiceSignIn}
-                disabled={!authGuided && !serviceConnected}
-              >
-                Fallback: I completed sign-in
-              </button>
-              <button type="button" onClick={openServiceCatalog}>
-                Open {selectedService.name} home
-              </button>
-            </div>
-            <p className="note">
-              Policy-safe pattern: official provider auth in system/custom tab, no embedded credential
-              interception.
-            </p>
-          </details>
-          {recentProfiles.length > 0 && (
-            <div className="quick-profiles">
-              {recentProfiles.map((profile) => (
-                <button key={profile} type="button" className="profile-pill" onClick={() => loginRecentProfile(profile)}>
-                  {profile}
-                </button>
-              ))}
-            </div>
-          )}
-          <details className="auth-manual-profile">
-            <summary>Manual profile controls</summary>
-            <form className="report" onSubmit={handleAuthSubmit}>
-              <label>
-                Display name
-                <input
-                  value={authName}
-                  onChange={(event) => setAuthName(event.target.value)}
-                  placeholder="Leave blank for auto guest"
-                />
-              </label>
-              {authError && <p className="warn">{authError}</p>}
-              <div className="button-row">
-                <button type="submit" disabled={!serviceConnected}>
-                  Continue
-                </button>
-                <button type="button" onClick={useQuickGuest} disabled={!serviceConnected}>
-                  Quick guest
-                </button>
-                <button type="button" onClick={resetServiceSelection}>
-                  Change service
-                </button>
-              </div>
-            </form>
-          </details>
-        </section>
-      </main>
-    );
-  }
-
-  if (currentPath === "/account") {
-    return (
-      <main
-        className={`app app-pre-room viewport-lock ${themeClass} ${settings.reduceMotion ? "reduce-motion" : ""} ${
-          settings.cinematicButtons ? "cinematic-buttons" : ""
-        } ${settings.highContrast ? "high-contrast" : ""}`}
-      >
-        <div className="ambient ambient-a" />
-        <div className="ambient ambient-b" />
-        <section className="card compact-page-shell utility-page-card">
-          <header className="hero">
-            <p className="route-pill">Account</p>
-            <div className="hero-topline">
-              <img src={brandLogoPath} alt="KinoPulse logo" className="brand-logo" />
-              <span className="hero-badge">{selectedService.name} profile</span>
-            </div>
-            <div className="status-row">
-              <span className="chip chip-safe">Signed in</span>
-              <span className="chip">User: {session.username}</span>
-              <span className="chip">{backendLabel}</span>
-            </div>
-          </header>
-
-          <section className="panel">
-            <h2>Display profile</h2>
-            <label>
-              Display name
-              <input
-                value={accountNameDraft}
-                onChange={(event) => setAccountNameDraft(event.target.value)}
-                placeholder="Guest775"
-              />
-            </label>
-            <div className="button-row compact-row">
-              <button type="button" onClick={saveAccountName}>
-                Save profile
-              </button>
-              <button type="button" onClick={openSettingsPage}>
-                Open settings
-              </button>
-              <button type="button" onClick={returnToPrimaryPage}>
-                Back to room
-              </button>
-              <button type="button" onClick={switchProfile}>
-                Switch account
-              </button>
-            </div>
-            {notice && <p className="ok">{notice}</p>}
-          </section>
-
-          {recentProfiles.length > 0 && (
-            <section className="panel">
-              <h3>Recent profiles</h3>
-              <div className="quick-profiles">
-                {recentProfiles.map((profile) => (
-                  <button
-                    key={`account-${profile}`}
-                    type="button"
-                    className="profile-pill"
-                    onClick={() => {
-                      persistSession({ username: profile, serviceId: selectedService.id });
-                      rememberProfile(profile);
-                      flashNotice(`Switched to ${profile}.`);
-                    }}
-                  >
-                    {profile}
-                  </button>
-                ))}
-              </div>
-            </section>
-          )}
-
-          <section className="panel">
-            <h3>Helpful pro tips</h3>
-            <ul>
-              <li>Use short room codes for fewer join mistakes on mobile.</li>
-              <li>Host should paste the exact watch URL before launching for faster sync.</li>
-              <li>Headphones + push-to-talk reduce echo in group voice rooms.</li>
-            </ul>
-          </section>
-        </section>
-      </main>
-    );
-  }
-
-  if (currentPath === "/settings") {
-    return (
-      <main
-        className={`app app-pre-room viewport-lock ${themeClass} ${settings.reduceMotion ? "reduce-motion" : ""} ${
-          settings.cinematicButtons ? "cinematic-buttons" : ""
-        } ${settings.highContrast ? "high-contrast" : ""}`}
-      >
-        <div className="ambient ambient-a" />
-        <div className="ambient ambient-b" />
-        <section className="card compact-page-shell utility-page-card">
-          <header className="hero">
-            <p className="route-pill">Settings</p>
-            <div className="hero-topline">
-              <img src={brandLogoPath} alt="KinoPulse logo" className="brand-logo" />
-              <span className="hero-badge">Room controls & accessibility</span>
-            </div>
-            <div className="button-row compact-row">
-              <button type="button" onClick={openAccountPage}>
-                Account
-              </button>
-              <button type="button" onClick={returnToPrimaryPage}>
-                Back to room
-              </button>
-            </div>
-          </header>
-
-          <section className="panel utility-settings-grid">
-            <label className="setting-item">
-              <input
-                type="checkbox"
-                checked={settings.compactChat}
-                onChange={(event) => patchSettings({ compactChat: event.target.checked })}
-              />
-              Compact chat bubbles
-            </label>
-            <label className="setting-item">
-              <input
-                type="checkbox"
-                checked={settings.reduceMotion}
-                onChange={(event) => patchSettings({ reduceMotion: event.target.checked })}
-              />
-              Reduce motion
-            </label>
-            <label className="setting-item">
-              <input
-                type="checkbox"
-                checked={settings.subtitlesEnabled}
-                onChange={(event) => patchSettings({ subtitlesEnabled: event.target.checked })}
-              />
-              Subtitles on by default
-            </label>
-            <label className="setting-item">
-              <input
-                type="checkbox"
-                checked={settings.keepScreenAwake}
-                onChange={(event) => patchSettings({ keepScreenAwake: event.target.checked })}
-              />
-              Keep screen awake
-            </label>
-            <label className="setting-item">
-              <input
-                type="checkbox"
-                checked={settings.profanityFilter}
-                onChange={(event) => patchSettings({ profanityFilter: event.target.checked })}
-              />
-              Profanity filter
-            </label>
-            <label className="setting-item">
-              <input
-                type="checkbox"
-                checked={settings.soundsEnabled}
-                onChange={(event) => patchSettings({ soundsEnabled: event.target.checked })}
-              />
-              UI sound feedback
-            </label>
-          </section>
-
-          <section className="panel">
-            <h3>Progress & backup</h3>
-            <p className="subtle">
-              Auto checkpoint: <strong>{formatStamp(lastCheckpointAt)}</strong>
-            </p>
-            <div className="button-row compact-row">
-              <button type="button" onClick={() => saveProgressSnapshot("manual")}>
-                Save checkpoint
-              </button>
-              <button type="button" onClick={restoreLastCheckpoint}>
-                Restore
-              </button>
-              <button type="button" onClick={exportBackup}>
-                Export
-              </button>
-              <button type="button" onClick={openImportBackupPicker}>
-                Import
-              </button>
-            </div>
-            <input
-              ref={importBackupRef}
-              type="file"
-              accept=".json,application/json"
-              onChange={importBackupFromFile}
-              hidden
-            />
-          </section>
-
-          <section className="panel">
-            <h3>Movie emoticon pack</h3>
-            <p className="subtle">Built-in movie pack + your uploaded custom image emoticons.</p>
-            <div className="button-row compact-row">
-              <button type="button" onClick={openEmoticonUploadPicker}>
-                Upload images
-              </button>
-              <button type="button" onClick={clearCustomEmoticons} disabled={!hasUploadedEmoticons}>
-                Clear uploaded pack
-              </button>
-            </div>
-            <input
-              ref={emoticonUploadRef}
-              type="file"
-              accept="image/*"
-              multiple
-              onChange={importCustomEmoticonFiles}
-              hidden
-            />
-            <div className="emoji-strip custom-strip">
-              {customEmoticons.slice(0, 10).map((emoticon) => (
-                <span key={`settings-page-${emoticon.id}`} className="emoji-chip custom preview-only">
-                  <img src={emoticon.src} alt={emoticon.label} />
-                </span>
-              ))}
-            </div>
-          </section>
-
-          <section className="panel legal">
-            <h3>Legal links</h3>
-            <p>
-              <a href="/legal/privacy.html" target="_blank" rel="noreferrer">
-                Privacy
-              </a>
-              <a href="/legal/terms.html" target="_blank" rel="noreferrer">
-                Terms
-              </a>
-              <a href="/legal/copyright.html" target="_blank" rel="noreferrer">
-                Copyright policy
-              </a>
-            </p>
-          </section>
-        </section>
-      </main>
-    );
-  }
-
   const RoomComposer = (
     <section className="panel room-composer compact-room-composer">
       <div className="panel-head">
@@ -3054,8 +2609,8 @@ function App() {
           <button type="button" onClick={copyInvite}>
             Copy invite
           </button>
-          <button type="button" onClick={() => setSettingsOpen(true)}>
-            Open settings
+          <button type="button" onClick={() => setSettingsOpen((prev) => !prev)}>
+            {settingsOpen ? "Close settings" : "Open settings"}
           </button>
           <button type="button" onClick={switchProfile}>
             Switch profile
@@ -3353,6 +2908,469 @@ function App() {
     </div>
   ) : null;
 
+  if (!selectedServiceId || currentPath === "/services") {
+    const topServices = ["netflix", "prime", "max", "disney", "appletv", "youtube", "paramount", "peacock"];
+    const displayServices = serviceCatalog.filter((s) => topServices.includes(s.id));
+    return (
+      <div className="popcorn-app popcorn-configure">
+        <div className="popcorn-particles">
+          {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+            <div key={i} className="popcorn-particle" />
+          ))}
+        </div>
+        <header className="popcorn-header popcorn-header-main">
+          <div className="popcorn-header-left">
+            <div className="popcorn-brand">
+              <img src={popcornLogoPath} alt="PopcornLobby" />
+              <span>PopcornLobby</span>
+            </div>
+          </div>
+          <button
+            type="button"
+            className={`popcorn-settings-btn ${settingsOpen ? "active" : ""}`}
+            onClick={() => setSettingsOpen((prev) => !prev)}
+            aria-label="Settings"
+            aria-expanded={settingsOpen}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="22" height="22">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+          </button>
+        </header>
+        <div className="popcorn-configure-content">
+          <h1 className="popcorn-configure-title">CONFIGURE YOUR PRIVATE PARTY</h1>
+          <p className="popcorn-section-title">1. Choose Your Streaming Service</p>
+          <div className="popcorn-service-grid">
+            {displayServices.map((service) => (
+              <button
+                key={service.id}
+                type="button"
+                className={`popcorn-service-icon ${homeServiceId === service.id ? "selected" : ""}`}
+                style={{ background: homeServiceId === service.id ? service.accent : undefined }}
+                onClick={() => setHomeServiceId(service.id)}
+              >
+                {service.tag}
+              </button>
+            ))}
+            <button
+              type="button"
+              className="popcorn-service-icon more"
+              onClick={() => {
+                const rest = serviceCatalog.filter((s) => !topServices.includes(s.id));
+                const idx = rest.findIndex((s) => s.id === homeServiceId);
+                setHomeServiceId(rest[(idx + 1) % Math.max(1, rest.length)]?.id ?? rest[0]?.id ?? homeServiceId);
+              }}
+            >
+              …
+            </button>
+          </div>
+          <p className="popcorn-section-title">2. Enter Video Link or Search</p>
+          <div className="popcorn-search-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.35-4.35" />
+            </svg>
+            <input
+              value={watchUrl}
+              onChange={(e) => setWatchUrl(e.target.value)}
+              placeholder="Paste a URL or search for content..."
+            />
+          </div>
+          <p className="popcorn-section-title">3. Name Your Party (Optional)</p>
+          <input
+            value={mediaTitle}
+            onChange={(e) => setMediaTitle(e.target.value)}
+            placeholder="e.g., Friyay Movie Night"
+          />
+          <button type="button" className="popcorn-start-btn" onClick={startRoomFromHome}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="11" width="18" height="11" rx="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
+            Start Party & Get Invite Link
+          </button>
+
+          <div className="popcorn-join-divider">
+            <span>Have an invite code?</span>
+          </div>
+          <div className="popcorn-join-block">
+            <p className="popcorn-join-label">Enter room code to join</p>
+            <div className="popcorn-join-row">
+              <input
+                className="popcorn-join-input"
+                value={roomCode}
+                onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
+                placeholder="e.g. FLIX87"
+                maxLength={12}
+              />
+              <button type="button" className="popcorn-join-paste" onClick={pasteRoomCodeFromClipboard}>
+                Paste
+              </button>
+            </div>
+            <button type="button" className="popcorn-join-btn" onClick={() => runQuickJoinFromHome()}>
+              Join Party
+            </button>
+            {recentRoomCards.length > 0 && (
+              <div className="popcorn-join-recent">
+                <p className="popcorn-join-recent-label">Recent:</p>
+                {recentRoomCards.slice(0, 2).map((room) => (
+                  <button
+                    key={`${room.roomCode}-${room.serviceId}`}
+                    type="button"
+                    className="popcorn-join-recent-btn"
+                    onClick={() => rejoinRecentRoom(room)}
+                  >
+                    {room.roomCode} · {room.title}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+        {notice && (
+          <div className="popcorn-toast" role="status">
+            {notice}
+          </div>
+        )}
+        {SettingsSheet}
+      </div>
+    );
+  }
+
+  if (!session || currentPath === "/auth") {
+    return (
+      <div className="popcorn-app popcorn-auth-page">
+        <div className="popcorn-particles">
+          {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+            <div key={i} className="popcorn-particle" />
+          ))}
+        </div>
+        <header className="popcorn-header popcorn-header-main">
+          <div className="popcorn-header-left">
+            <button type="button" className="popcorn-hamburger" onClick={() => navigate("/services")} aria-label="Back">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="24" height="24">
+                <path d="M19 12H5M12 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <div className="popcorn-brand">
+              <img src={popcornLogoPath} alt="PopcornLobby" />
+              <span>PopcornLobby</span>
+            </div>
+          </div>
+        </header>
+        <div className="popcorn-auth-content">
+          <div className="popcorn-auth-step">Step 1 of 2</div>
+          <h1 className="popcorn-auth-title">Sign in to {selectedService.name}</h1>
+          <p className="popcorn-auth-subtitle">
+            We open the official {selectedService.name} page in a secure tab. Your credentials never pass through our servers.
+          </p>
+
+          <button
+            type="button"
+            className={`popcorn-auth-cta ${serviceConnected ? "connected" : ""}`}
+            onClick={serviceConnected ? continueInstantly : startServiceSignIn}
+          >
+            {serviceConnected ? (
+              <>
+                <span className="popcorn-auth-check">✓</span>
+                Continue as {recommendedAuthProfile}
+              </>
+            ) : (
+              <>Sign in with {selectedService.name}</>
+            )}
+          </button>
+
+          {authInfo && <p className="popcorn-auth-info">{authInfo}</p>}
+          {authError && <p className="popcorn-auth-error">{authError}</p>}
+
+          <button type="button" className="popcorn-auth-fallback" onClick={confirmServiceSignIn}>
+            I already signed in — continue
+          </button>
+
+          <div className="popcorn-auth-divider">—</div>
+
+          <div className="popcorn-auth-step">Step 2 of 2</div>
+          <h2 className="popcorn-auth-label">Your display name</h2>
+          <input
+            className="popcorn-auth-input"
+            value={authName}
+            onChange={(e) => setAuthName(e.target.value)}
+            placeholder="e.g., Alex, MovieFan123"
+          />
+          <p className="popcorn-auth-hint">Leave blank for a random guest name</p>
+
+          <form onSubmit={handleAuthSubmit} className="popcorn-auth-form">
+            <button type="submit" className="popcorn-start-btn" disabled={!serviceConnected}>
+              Continue to lobby
+            </button>
+          </form>
+
+          {recentProfiles.length > 0 && (
+            <div className="popcorn-auth-recent">
+              <p className="popcorn-auth-recent-label">Quick switch:</p>
+              <div className="popcorn-auth-recent-pills">
+                {recentProfiles.map((profile) => (
+                  <button key={profile} type="button" className="popcorn-auth-pill" onClick={() => loginRecentProfile(profile)}>
+                    {profile}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <button type="button" className="popcorn-auth-link" onClick={resetServiceSelection}>
+            Choose different service
+          </button>
+        </div>
+        {notice && (
+          <div className="popcorn-toast" role="status">
+            {notice}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (currentPath === "/account") {
+    return (
+      <main
+        className={`app app-pre-room viewport-lock ${themeClass} ${settings.reduceMotion ? "reduce-motion" : ""} ${
+          settings.cinematicButtons ? "cinematic-buttons" : ""
+        } ${settings.highContrast ? "high-contrast" : ""}`}
+      >
+        <div className="ambient ambient-a" />
+        <div className="ambient ambient-b" />
+        <section className="card compact-page-shell utility-page-card">
+          <header className="hero">
+            <p className="route-pill">Account</p>
+            <div className="hero-topline">
+              <img src={brandLogoPath} alt="KinoPulse logo" className="brand-logo" />
+              <span className="hero-badge">{selectedService.name} profile</span>
+            </div>
+            <div className="status-row">
+              <span className="chip chip-safe">Signed in</span>
+              <span className="chip">User: {session.username}</span>
+              <span className="chip">{backendLabel}</span>
+            </div>
+          </header>
+
+          <section className="panel">
+            <h2>Display profile</h2>
+            <label>
+              Display name
+              <input
+                value={accountNameDraft}
+                onChange={(event) => setAccountNameDraft(event.target.value)}
+                placeholder="Guest775"
+              />
+            </label>
+            <div className="button-row compact-row">
+              <button type="button" onClick={saveAccountName}>
+                Save profile
+              </button>
+              <button type="button" onClick={openSettingsPage}>
+                Open settings
+              </button>
+              <button type="button" onClick={returnToPrimaryPage}>
+                Back to room
+              </button>
+              <button type="button" onClick={switchProfile}>
+                Switch account
+              </button>
+            </div>
+            {notice && <p className="ok">{notice}</p>}
+          </section>
+
+          {recentProfiles.length > 0 && (
+            <section className="panel">
+              <h3>Recent profiles</h3>
+              <div className="quick-profiles">
+                {recentProfiles.map((profile) => (
+                  <button
+                    key={`account-${profile}`}
+                    type="button"
+                    className="profile-pill"
+                    onClick={() => {
+                      persistSession({ username: profile, serviceId: selectedService.id });
+                      rememberProfile(profile);
+                      flashNotice(`Switched to ${profile}.`);
+                    }}
+                  >
+                    {profile}
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
+
+          <section className="panel">
+            <h3>Helpful pro tips</h3>
+            <ul>
+              <li>Use short room codes for fewer join mistakes on mobile.</li>
+              <li>Host should paste the exact watch URL before launching for faster sync.</li>
+              <li>Headphones + push-to-talk reduce echo in group voice rooms.</li>
+            </ul>
+          </section>
+        </section>
+      </main>
+    );
+  }
+
+  if (currentPath === "/settings") {
+    return (
+      <main
+        className={`app app-pre-room viewport-lock ${themeClass} ${settings.reduceMotion ? "reduce-motion" : ""} ${
+          settings.cinematicButtons ? "cinematic-buttons" : ""
+        } ${settings.highContrast ? "high-contrast" : ""}`}
+      >
+        <div className="ambient ambient-a" />
+        <div className="ambient ambient-b" />
+        <section className="card compact-page-shell utility-page-card">
+          <header className="hero">
+            <p className="route-pill">Settings</p>
+            <div className="hero-topline">
+              <img src={brandLogoPath} alt="KinoPulse logo" className="brand-logo" />
+              <span className="hero-badge">Room controls & accessibility</span>
+            </div>
+            <div className="button-row compact-row">
+              <button type="button" onClick={openAccountPage}>
+                Account
+              </button>
+              <button type="button" onClick={returnToPrimaryPage}>
+                Back to room
+              </button>
+            </div>
+          </header>
+
+          <section className="panel utility-settings-grid">
+            <label className="setting-item">
+              <input
+                type="checkbox"
+                checked={settings.compactChat}
+                onChange={(event) => patchSettings({ compactChat: event.target.checked })}
+              />
+              Compact chat bubbles
+            </label>
+            <label className="setting-item">
+              <input
+                type="checkbox"
+                checked={settings.reduceMotion}
+                onChange={(event) => patchSettings({ reduceMotion: event.target.checked })}
+              />
+              Reduce motion
+            </label>
+            <label className="setting-item">
+              <input
+                type="checkbox"
+                checked={settings.subtitlesEnabled}
+                onChange={(event) => patchSettings({ subtitlesEnabled: event.target.checked })}
+              />
+              Subtitles on by default
+            </label>
+            <label className="setting-item">
+              <input
+                type="checkbox"
+                checked={settings.keepScreenAwake}
+                onChange={(event) => patchSettings({ keepScreenAwake: event.target.checked })}
+              />
+              Keep screen awake
+            </label>
+            <label className="setting-item">
+              <input
+                type="checkbox"
+                checked={settings.profanityFilter}
+                onChange={(event) => patchSettings({ profanityFilter: event.target.checked })}
+              />
+              Profanity filter
+            </label>
+            <label className="setting-item">
+              <input
+                type="checkbox"
+                checked={settings.soundsEnabled}
+                onChange={(event) => patchSettings({ soundsEnabled: event.target.checked })}
+              />
+              UI sound feedback
+            </label>
+          </section>
+
+          <section className="panel">
+            <h3>Progress & backup</h3>
+            <p className="subtle">
+              Auto checkpoint: <strong>{formatStamp(lastCheckpointAt)}</strong>
+            </p>
+            <div className="button-row compact-row">
+              <button type="button" onClick={() => saveProgressSnapshot("manual")}>
+                Save checkpoint
+              </button>
+              <button type="button" onClick={restoreLastCheckpoint}>
+                Restore
+              </button>
+              <button type="button" onClick={exportBackup}>
+                Export
+              </button>
+              <button type="button" onClick={openImportBackupPicker}>
+                Import
+              </button>
+            </div>
+            <input
+              ref={importBackupRef}
+              type="file"
+              accept=".json,application/json"
+              onChange={importBackupFromFile}
+              hidden
+            />
+          </section>
+
+          <section className="panel">
+            <h3>Movie emoticon pack</h3>
+            <p className="subtle">Built-in movie pack + your uploaded custom image emoticons.</p>
+            <div className="button-row compact-row">
+              <button type="button" onClick={openEmoticonUploadPicker}>
+                Upload images
+              </button>
+              <button type="button" onClick={clearCustomEmoticons} disabled={!hasUploadedEmoticons}>
+                Clear uploaded pack
+              </button>
+            </div>
+            <input
+              ref={emoticonUploadRef}
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={importCustomEmoticonFiles}
+              hidden
+            />
+            <div className="emoji-strip custom-strip">
+              {customEmoticons.slice(0, 10).map((emoticon) => (
+                <span key={`settings-page-${emoticon.id}`} className="emoji-chip custom preview-only">
+                  <img src={emoticon.src} alt={emoticon.label} />
+                </span>
+              ))}
+            </div>
+          </section>
+
+          <section className="panel legal">
+            <h3>Legal links</h3>
+            <p>
+              <a href="/legal/privacy.html" target="_blank" rel="noreferrer">
+                Privacy
+              </a>
+              <a href="/legal/terms.html" target="_blank" rel="noreferrer">
+                Terms
+              </a>
+              <a href="/legal/copyright.html" target="_blank" rel="noreferrer">
+                Copyright policy
+              </a>
+            </p>
+          </section>
+        </section>
+      </main>
+    );
+  }
+
+
+
   if (currentPath === "/lobby" || !partyLive) {
     return (
       <div className="popcorn-app popcorn-configure">
@@ -3363,10 +3381,17 @@ function App() {
         </div>
         <header className="popcorn-header popcorn-header-main">
           <div className="popcorn-header-left">
-            <button type="button" className="popcorn-hamburger" onClick={() => setSettingsOpen(true)} aria-label="Menu">
-              <span />
-              <span />
-              <span />
+            <button
+              type="button"
+              className={`popcorn-settings-btn ${settingsOpen ? "active" : ""}`}
+              onClick={() => setSettingsOpen((prev) => !prev)}
+              aria-label="Settings"
+              aria-expanded={settingsOpen}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="22" height="22">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
             </button>
             <div className="popcorn-brand">
               <img src={popcornLogoPath} alt="PopcornLobby" />
@@ -3410,11 +3435,18 @@ function App() {
     <div className="popcorn-app popcorn-lobby-page">
       <header className="popcorn-header popcorn-header-main">
         <div className="popcorn-header-left">
-          <button type="button" className="popcorn-hamburger" onClick={() => setSettingsOpen(true)} aria-label="Menu">
-            <span />
-            <span />
-            <span />
-          </button>
+            <button
+              type="button"
+              className={`popcorn-settings-btn ${settingsOpen ? "active" : ""}`}
+              onClick={() => setSettingsOpen((prev) => !prev)}
+              aria-label="Settings"
+              aria-expanded={settingsOpen}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="22" height="22">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+            </button>
           <div className="popcorn-brand">
             <img src={popcornLogoPath} alt="PopcornLobby" />
             <span>PopcornLobby</span>
@@ -3530,7 +3562,7 @@ function App() {
         className="popcorn-manage-btn"
         onClick={() => {
           copyInvite();
-          setSettingsOpen(true);
+          setSettingsOpen((prev) => !prev);
         }}
       >
         Manage Lobby & Invite

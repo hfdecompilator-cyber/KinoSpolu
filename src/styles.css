@@ -17,6 +17,12 @@
   --service-accent-rgb: 45, 114, 255;
   --press-scale: 0.97;
   --ui-transition: 170ms ease;
+  /* Frosted glass theme */
+  --glass-bg: rgba(255, 255, 255, 0.06);
+  --glass-bg-strong: rgba(255, 255, 255, 0.1);
+  --glass-border: rgba(255, 255, 255, 0.12);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+  --glass-blur: 16px;
 }
 
 * {
@@ -1299,8 +1305,11 @@ button:disabled {
 
 .sheet {
   border-radius: 18px 18px 0 0;
-  border: 1px solid var(--stroke);
-  background: linear-gradient(165deg, rgba(10, 20, 38, 0.98), rgba(7, 13, 25, 0.97));
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.3);
   max-height: 86vh;
   overflow: auto;
   padding: 12px;
@@ -1699,10 +1708,21 @@ button:disabled {
   }
 }
 
-/* ========== PopcornLobby UI ========== */
+/* ========== Frosted Glass Theme Variables ========== */
+:root {
+  --glass-bg: rgba(255, 255, 255, 0.06);
+  --glass-bg-strong: rgba(255, 255, 255, 0.1);
+  --glass-border: rgba(255, 255, 255, 0.12);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+  --glass-shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.35);
+  --glass-blur: 16px;
+  --glass-blur-strong: 24px;
+}
+
+/* ========== PopcornLobby UI - Frosted Glass Floating ========== */
 .popcorn-app {
   min-height: 100vh;
-  background: #0a0e1a;
+  background: linear-gradient(160deg, #0c1220 0%, #0a0e1a 40%, #050810 100%);
   position: relative;
   overflow-x: hidden;
 }
@@ -1712,20 +1732,24 @@ button:disabled {
   inset: 0;
   pointer-events: none;
   z-index: 0;
-  background: radial-gradient(ellipse 80% 50% at 50% 100%, rgba(255, 140, 50, 0.15) 0%, transparent 50%),
-    radial-gradient(ellipse 60% 40% at 20% 90%, rgba(255, 180, 80, 0.08) 0%, transparent 40%),
-    radial-gradient(ellipse 50% 30% at 80% 85%, rgba(255, 120, 40, 0.1) 0%, transparent 35%);
+  background: radial-gradient(ellipse 80% 50% at 50% 100%, rgba(255, 140, 50, 0.12) 0%, transparent 50%),
+    radial-gradient(ellipse 60% 40% at 20% 90%, rgba(255, 180, 80, 0.06) 0%, transparent 40%),
+    radial-gradient(ellipse 50% 30% at 80% 85%, rgba(255, 120, 40, 0.08) 0%, transparent 35%);
 }
 
-.popcorn-header {
+.popcorn-header,
+.popcorn-header-main {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
   position: relative;
   z-index: 10;
-  background: rgba(10, 14, 26, 0.85);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border-bottom: 1px solid var(--glass-border);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
 }
 
 .popcorn-menu-btn {
@@ -1816,7 +1840,7 @@ button:disabled {
 .popcorn-service-icon {
   aspect-ratio: 1;
   border-radius: 50%;
-  border: 2px solid transparent;
+  border: 1px solid var(--glass-border);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1825,10 +1849,12 @@ button:disabled {
   color: #fff;
   cursor: pointer;
   transition: all 0.2s ease;
-  background: rgba(30, 41, 59, 0.9);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   padding: 0;
   animation: none;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--glass-shadow);
 }
 
 .popcorn-service-icon:hover {
@@ -2154,6 +2180,30 @@ button:disabled {
   background: #fff;
   border-radius: 1px;
 }
+.popcorn-settings-btn {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  transition: color 0.2s, background 0.2s;
+  box-shadow: none;
+  animation: none;
+}
+.popcorn-settings-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+}
+.popcorn-settings-btn.active {
+  color: #22d3ee;
+  background: rgba(34, 211, 238, 0.15);
+}
 .popcorn-brand {
   display: flex;
   align-items: center;
@@ -2217,6 +2267,12 @@ button:disabled {
   padding: 24px 20px 32px;
   max-width: 420px;
   margin: 0 auto;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: 20px;
+  box-shadow: var(--glass-shadow);
 }
 .popcorn-configure-title {
   font-size: 1.25rem;
@@ -2242,8 +2298,10 @@ button:disabled {
   width: 100%;
   aspect-ratio: 1;
   border-radius: 50%;
-  border: 2px solid transparent;
-  background: rgba(30, 41, 59, 0.9);
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2252,7 +2310,7 @@ button:disabled {
   color: #fff;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: none;
+  box-shadow: var(--glass-shadow);
   animation: none;
 }
 .popcorn-service-icon:hover {
@@ -2262,6 +2320,119 @@ button:disabled {
 .popcorn-service-icon.selected {
   border-color: #22d3ee;
   box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.4), 0 0 20px rgba(34, 211, 238, 0.3);
+  animation: popcorn-float 3s ease-in-out infinite;
+}
+@keyframes popcorn-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+.popcorn-join-section {
+  margin-top: 28px;
+  padding-top: 24px;
+  border-top: 1px solid rgba(148, 163, 184, 0.2);
+}
+.popcorn-join-divider {
+  font-size: 0.8rem;
+  color: #64748b;
+  text-align: center;
+  margin-bottom: 16px;
+  letter-spacing: 0.05em;
+}
+.popcorn-join-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.popcorn-join-row input {
+  flex: 1;
+  min-width: 0;
+  max-width: 140px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  text-align: center;
+}
+.popcorn-join-btn {
+  padding: 12px 20px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #ea580c, #f97316);
+  border: none;
+  border-radius: 12px;
+  color: #fff;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: transform 0.2s, box-shadow 0.2s;
+  animation: none;
+}
+.popcorn-join-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(234, 88, 12, 0.4);
+}
+.popcorn-join-paste {
+  padding: 12px 16px;
+  background: rgba(71, 85, 105, 0.5);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 12px;
+  color: #e2e8f0;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.2s;
+}
+.popcorn-join-paste:hover {
+  background: rgba(71, 85, 105, 0.7);
+}
+.popcorn-join-block {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 20px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  box-shadow: var(--glass-shadow);
+}
+.popcorn-join-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #94a3b8;
+  margin: 0;
+}
+.popcorn-join-input {
+  padding: 12px 16px;
+  font-size: 1rem;
+  border-radius: 12px;
+  border: 1px solid rgba(71, 85, 105, 0.6);
+  background: rgba(15, 23, 42, 0.8);
+  color: #fff;
+}
+.popcorn-join-recent {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.popcorn-join-recent-label {
+  font-size: 0.8rem;
+  color: #64748b;
+  margin: 0;
+}
+.popcorn-join-recent-btn {
+  padding: 10px 14px;
+  background: rgba(71, 85, 105, 0.4);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 10px;
+  color: #e2e8f0;
+  font-size: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.2s;
+  animation: none;
+  box-shadow: none;
+}
+.popcorn-join-recent-btn:hover {
+  background: rgba(71, 85, 105, 0.6);
 }
 .popcorn-service-icon.more {
   font-size: 1.2rem;
@@ -2309,6 +2480,276 @@ button:disabled {
   width: 20px;
   height: 20px;
 }
+
+/* Auth page */
+.popcorn-auth-page {
+  min-height: 100vh;
+  background: #0a0e1a;
+  position: relative;
+}
+.popcorn-auth-content {
+  position: relative;
+  z-index: 1;
+  padding: 28px 24px 40px;
+  max-width: 400px;
+  margin: 0 auto;
+}
+.popcorn-auth-step {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: #64748b;
+  margin-bottom: 8px;
+}
+.popcorn-auth-title {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #fff;
+  margin-bottom: 10px;
+  line-height: 1.25;
+}
+.popcorn-auth-subtitle {
+  font-size: 0.95rem;
+  color: #94a3b8;
+  line-height: 1.5;
+  margin-bottom: 24px;
+}
+.popcorn-auth-cta {
+  width: 100%;
+  padding: 18px 24px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  border: none;
+  border-radius: 14px;
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  box-shadow: 0 4px 20px rgba(37, 99, 235, 0.4);
+  transition: transform 0.2s, box-shadow 0.2s;
+  animation: none;
+}
+.popcorn-auth-cta:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px rgba(37, 99, 235, 0.5);
+}
+.popcorn-auth-cta.connected {
+  background: linear-gradient(135deg, #059669, #10b981);
+  box-shadow: 0 4px 20px rgba(5, 150, 105, 0.4);
+}
+.popcorn-auth-check {
+  font-size: 1.2em;
+}
+.popcorn-auth-info {
+  margin-top: 16px;
+  padding: 12px 16px;
+  background: rgba(34, 197, 94, 0.15);
+  border-radius: 10px;
+  color: #4ade80;
+  font-size: 0.9rem;
+}
+.popcorn-auth-error {
+  margin-top: 12px;
+  color: #f87171;
+  font-size: 0.9rem;
+}
+.popcorn-auth-fallback {
+  margin-top: 16px;
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 0.9rem;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+  animation: none;
+  box-shadow: none;
+}
+.popcorn-auth-fallback:hover {
+  color: #cbd5e1;
+}
+.popcorn-auth-divider {
+  margin: 28px 0 20px;
+  text-align: center;
+  color: #475569;
+  font-size: 1rem;
+}
+.popcorn-auth-label {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #e2e8f0;
+  margin-bottom: 8px;
+}
+.popcorn-auth-input {
+  width: 100%;
+  padding: 14px 16px;
+  font-size: 1rem;
+  border-radius: 12px;
+  border: 1px solid rgba(71, 85, 105, 0.6);
+  background: rgba(15, 23, 42, 0.8);
+  color: #fff;
+  margin-bottom: 6px;
+}
+.popcorn-auth-hint {
+  font-size: 0.8rem;
+  color: #64748b;
+  margin-bottom: 20px;
+}
+.popcorn-auth-form {
+  margin-bottom: 24px;
+}
+.popcorn-auth-recent {
+  margin-bottom: 20px;
+}
+.popcorn-auth-recent-label {
+  font-size: 0.85rem;
+  color: #64748b;
+  margin-bottom: 8px;
+}
+.popcorn-auth-recent-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.popcorn-auth-pill {
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(96, 165, 250, 0.4);
+  background: rgba(30, 58, 138, 0.3);
+  color: #93c5fd;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  animation: none;
+  box-shadow: none;
+}
+.popcorn-auth-pill:hover {
+  background: rgba(30, 58, 138, 0.5);
+  border-color: rgba(96, 165, 250, 0.6);
+}
+.popcorn-auth-link {
+  background: none;
+  border: none;
+  color: #64748b;
+  font-size: 0.9rem;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+  animation: none;
+  box-shadow: none;
+}
+.popcorn-auth-link:hover {
+  color: #94a3b8;
+}
+
+.popcorn-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 14px 24px;
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 12px;
+  color: #e2e8f0;
+  font-size: 0.95rem;
+  font-weight: 500;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  z-index: 9999;
+  animation: toast-in 0.25s ease-out;
+}
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(12px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* Join party section on Configure */
+.popcorn-join-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 28px 0 16px;
+  color: #64748b;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+.popcorn-join-divider::before,
+.popcorn-join-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: rgba(100, 116, 139, 0.4);
+}
+.popcorn-join-section {
+  padding: 20px;
+  background: rgba(30, 41, 59, 0.5);
+  border-radius: 14px;
+  border: 1px solid rgba(71, 85, 105, 0.4);
+}
+.popcorn-join-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #94a3b8;
+  margin-bottom: 10px;
+}
+.popcorn-join-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.popcorn-join-row input {
+  flex: 1;
+  min-width: 0;
+  padding: 12px 16px;
+  font-size: 1rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.popcorn-join-btn {
+  padding: 12px 20px;
+  font-weight: 600;
+  background: linear-gradient(135deg, #ea580c, #f97316);
+  border: none;
+  border-radius: 12px;
+  color: #fff;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform 0.2s, box-shadow 0.2s;
+  animation: none;
+}
+.popcorn-join-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(234, 88, 12, 0.4);
+}
+.popcorn-join-paste {
+  padding: 12px 16px;
+  background: rgba(71, 85, 105, 0.5);
+  border: 1px solid rgba(100, 116, 139, 0.5);
+  border-radius: 12px;
+  color: #e2e8f0;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 0.2s;
+  animation: none;
+  box-shadow: none;
+}
+.popcorn-join-paste:hover {
+  background: rgba(71, 85, 105, 0.7);
+}
+
+/* Floating animation for selected service */
+.popcorn-service-icon.selected {
+  animation: popcorn-float 3s ease-in-out infinite;
+}
+@keyframes popcorn-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
 .popcorn-lobby-page {
   min-height: 100vh;
   background: #0a0e1a;
@@ -2333,7 +2774,9 @@ button:disabled {
   height: 56px;
   border-radius: 50%;
   border: 3px solid #22c55e;
-  background: linear-gradient(135deg, #374151, #1f2937);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2341,6 +2784,7 @@ button:disabled {
   font-size: 1.2rem;
   font-weight: 600;
   position: relative;
+  box-shadow: var(--glass-shadow);
 }
 .popcorn-host-avatar::after {
   content: "✓";
@@ -2392,8 +2836,10 @@ button:disabled {
   aspect-ratio: 16/9;
   background: #000;
   margin: 0 20px 16px;
-  border-radius: 12px;
+  border-radius: 16px;
   overflow: hidden;
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow-lg);
 }
 .popcorn-video-wrap video,
 .popcorn-video-wrap iframe {
@@ -2509,15 +2955,94 @@ button:disabled {
   padding: 16px 20px;
   font-size: 1rem;
   font-weight: 700;
-  background: linear-gradient(135deg, #ea580c, #f97316);
-  border: none;
-  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(234, 88, 12, 0.9), rgba(249, 115, 22, 0.9));
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 16px;
   color: #fff;
   cursor: pointer;
-  box-shadow: 0 4px 20px rgba(234, 88, 12, 0.4);
+  box-shadow: var(--glass-shadow-lg), 0 4px 20px rgba(234, 88, 12, 0.35);
   transition: transform 0.2s, box-shadow 0.2s;
 }
 .popcorn-manage-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 24px rgba(234, 88, 12, 0.5);
+  transform: translateY(-2px);
+  box-shadow: var(--glass-shadow-lg), 0 8px 28px rgba(234, 88, 12, 0.45);
+}
+
+/* Sheet - frosted glass floating */
+.sheet {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow-lg);
+}
+.sheet-backdrop {
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* Lobby page - frosted glass */
+.popcorn-lobby-page {
+  background: linear-gradient(160deg, #0c1220 0%, #0a0e1a 50%, #050810 100%);
+}
+.popcorn-video-wrap {
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+.popcorn-host-avatar,
+.popcorn-invite-slot {
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-color: var(--glass-border);
+}
+.popcorn-chat-avatar {
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.popcorn-configure-content,
+.popcorn-auth-content {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: 20px;
+  box-shadow: var(--glass-shadow);
+}
+.popcorn-join-block {
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: var(--glass-shadow);
+}
+.popcorn-service-icon {
+  background: var(--glass-bg);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid var(--glass-border);
+}
+.popcorn-room-composer,
+.room-composer,
+.compact-room-composer {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: var(--glass-shadow);
+}
+.panel {
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  box-shadow: var(--glass-shadow);
 }
