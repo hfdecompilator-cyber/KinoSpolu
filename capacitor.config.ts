@@ -4,7 +4,7 @@ const liveServerUrl = process.env.CAPACITOR_SERVER_URL?.trim();
 
 const config: CapacitorConfig = {
   appId: 'com.kinospolu.app',
-  appName: 'KinoSpolu',
+  appName: 'PopcornLobby',
   webDir: 'dist',
   server: liveServerUrl
     ? {

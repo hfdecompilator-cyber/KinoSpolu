@@ -35,6 +35,7 @@ const SUPABASE_CONFIGURED = Boolean(
   import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY
 );
 const brandLogoPath = "/brand/kinopulse-logo.svg";
+const popcornLogoPath = "/brand/popcorn-logo.svg";
 type WakeLockHandle = { release: () => Promise<void> };
 type NavigatorWithWakeLock = Navigator & {
   wakeLock?: { request: (type: "screen") => Promise<WakeLockHandle> };
@@ -617,7 +618,7 @@ function App() {
   const [authAutoStartServiceId, setAuthAutoStartServiceId] = useState<string | null>(null);
   const [accountNameDraft, setAccountNameDraft] = useState("");
   const [homeServiceId, setHomeServiceId] = useState<string>(() =>
-    localStorage.getItem(SERVICE_KEY) || "twitch"
+    localStorage.getItem(SERVICE_KEY) || "netflix"
   );
 
   const [lobbyDraftSeed] = useState(() =>
@@ -2522,90 +2523,99 @@ function App() {
   }, []);
 
   if (!selectedServiceId || currentPath === "/services") {
+    const topServices = ["netflix", "prime", "max", "disney", "appletv", "youtube", "paramount", "peacock"];
+    const displayServices = serviceCatalog.filter((s) => topServices.includes(s.id));
     return (
-      <main className={`service-root service-home-root theme-${homeSelectedService.id}`}>
-        <section className="service-home-shell">
-          <header className="service-home-header">
-            <div>
-              <img src={brandLogoPath} alt="KinoPulse logo" className="brand-logo" />
-              <h1>KinoPulse</h1>
-              <p>Watch party</p>
+      <div className="popcorn-app popcorn-configure">
+        <div className="popcorn-particles">
+          {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+            <div key={i} className="popcorn-particle" />
+          ))}
+        </div>
+        <header className="popcorn-header popcorn-header-main">
+          <div className="popcorn-header-left">
+            <button type="button" className="popcorn-hamburger" onClick={() => setSettingsOpen(true)} aria-label="Menu">
+              <span />
+              <span />
+              <span />
+            </button>
+            <div className="popcorn-brand">
+              <img src={popcornLogoPath} alt="PopcornLobby" />
+              <span>PopcornLobby</span>
             </div>
-            <div className="service-home-status">
-              <span>Ready to launch</span>
-              <span>Projection ready</span>
-              <span>Service: {homeSelectedService.name}</span>
-            </div>
-          </header>
-
-          <div className="service-home-columns">
-            <section className="service-home-card host">
-              <p className="service-home-title">Ready to host?</p>
-              <h2>Choose your streaming host</h2>
-              <div className="service-home-matrix">
-                {serviceCatalog.map((service) => (
-                  <button
-                    key={service.id}
-                    type="button"
-                    className={`service-home-tile ${homeServiceId === service.id ? "active" : ""} ${
-                      service.id === "direct" ? "special" : ""
-                    }`}
-                    style={{ background: service.id === "direct" ? "rgba(49,46,129,0.95)" : service.accent }}
-                    onClick={() => setHomeServiceId(service.id)}
-                  >
-                    {service.id === "direct" ? "Licensed\nDirect URL" : service.tag}
-                  </button>
-                ))}
-              </div>
-              <p className="service-home-note">
-                Sync-only. Each participant uses their own service account; no rebroadcasting.
-              </p>
-              <button type="button" className="service-home-start" onClick={startRoomFromHome}>
-                [ Start New Room ]
-              </button>
-              <p className="note">Industry pattern: no rebroadcasting.</p>
-            </section>
-
-            <section className="service-home-card guest">
-              <p className="service-home-title">Guest</p>
-              <h2>Join a watch party</h2>
-              <label className="service-home-input-wrap">
-                Enter room code
-                <input
-                  value={roomCode}
-                  onChange={(event) => setRoomCode(event.target.value.toUpperCase())}
-                  placeholder="PULSE"
-                />
-              </label>
-              <div className="service-home-guest-actions">
-                <button type="button" onClick={pasteRoomCodeFromClipboard}>
-                  Paste
-                </button>
-                <button type="button" onClick={() => runQuickJoinFromHome()}>
-                  [ Join Room ]
-                </button>
-              </div>
-              <h3>Recent rooms</h3>
-              <div className="service-home-recent">
-                {recentRoomCards.map((room) => (
-                  <article key={`${room.roomCode}-${room.serviceId}`} className="service-home-recent-card">
-                    <div className="service-home-recent-thumb" style={{ background: room.serviceAccent }}>
-                      {room.serviceTag}
-                    </div>
-                    <div className="service-home-recent-meta">
-                      <strong>{room.title}</strong>
-                      <span>{room.subtitle}</span>
-                    </div>
-                    <button type="button" onClick={() => rejoinRecentRoom(room)}>
-                      Rejoin
-                    </button>
-                  </article>
-                ))}
-              </div>
-            </section>
           </div>
-        </section>
-      </main>
+          <div className="popcorn-avatar" title={username || "Profile"}>
+            {(username || "U").charAt(0).toUpperCase()}
+          </div>
+        </header>
+        <div className="popcorn-configure-content">
+          <h1 className="popcorn-configure-title">CONFIGURE YOUR PRIVATE PARTY</h1>
+          <p className="popcorn-section-title">1. Choose Your Streaming Service</p>
+          <div className="popcorn-service-grid">
+            {displayServices.map((service) => (
+              <button
+                key={service.id}
+                type="button"
+                className={`popcorn-service-icon ${homeServiceId === service.id ? "selected" : ""}`}
+                style={{ background: homeServiceId === service.id ? service.accent : undefined }}
+                onClick={() => setHomeServiceId(service.id)}
+              >
+                {service.tag}
+              </button>
+            ))}
+            <button
+              type="button"
+              className="popcorn-service-icon more"
+              onClick={() => {
+                const rest = serviceCatalog.filter((s) => !topServices.includes(s.id));
+                const idx = rest.findIndex((s) => s.id === homeServiceId);
+                setHomeServiceId(rest[(idx + 1) % Math.max(1, rest.length)]?.id ?? rest[0]?.id ?? homeServiceId);
+              }}
+            >
+              …
+            </button>
+          </div>
+          <p className="popcorn-section-title">2. Enter Video Link or Search</p>
+          <div className="popcorn-search-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.35-4.35" />
+            </svg>
+            <input
+              value={watchUrl}
+              onChange={(e) => setWatchUrl(e.target.value)}
+              placeholder="Paste a URL or search for content..."
+            />
+          </div>
+          <p className="popcorn-section-title">3. Name Your Party (Optional)</p>
+          <input
+            value={mediaTitle}
+            onChange={(e) => setMediaTitle(e.target.value)}
+            placeholder="e.g., Friyay Movie Night"
+          />
+          <button type="button" className="popcorn-start-btn" onClick={startRoomFromHome}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="11" width="18" height="11" rx="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
+            Start Party & Get Invite Link
+          </button>
+          <div style={{ marginTop: 20, display: "flex", gap: 8, alignItems: "center" }}>
+            <input
+              value={roomCode}
+              onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
+              placeholder="Room code"
+              style={{ flex: 1, maxWidth: 120 }}
+            />
+            <button type="button" onClick={pasteRoomCodeFromClipboard} style={{ padding: "8px 12px" }}>
+              Paste
+            </button>
+            <button type="button" onClick={() => runQuickJoinFromHome()} style={{ padding: "8px 16px" }}>
+              Join party
+            </button>
+          </div>
+        </div>
+      </div>
     );
   }
 
@@ -3345,39 +3355,31 @@ function App() {
 
   if (currentPath === "/lobby" || !partyLive) {
     return (
-      <main
-        className={`app app-pre-room viewport-lock ${themeClass} ${settings.reduceMotion ? "reduce-motion" : ""} ${
-          settings.cinematicButtons ? "cinematic-buttons" : ""
-        } ${settings.highContrast ? "high-contrast" : ""}`}
-      >
-        <div className="ambient ambient-a" />
-        <div className="ambient ambient-b" />
-        <section className="card pre-room-card compact-page-shell">
-          <header className="hero">
-            <p className="route-pill">Step 3 / 4 • Lobby setup</p>
-            <div className="hero-topline">
-              <img src={brandLogoPath} alt="KinoPulse logo" className="brand-logo" />
-              <span className="hero-badge">Auto-login active for {username}</span>
+      <div className="popcorn-app popcorn-configure">
+        <div className="popcorn-particles">
+          {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+            <div key={i} className="popcorn-particle" />
+          ))}
+        </div>
+        <header className="popcorn-header popcorn-header-main">
+          <div className="popcorn-header-left">
+            <button type="button" className="popcorn-hamburger" onClick={() => setSettingsOpen(true)} aria-label="Menu">
+              <span />
+              <span />
+              <span />
+            </button>
+            <div className="popcorn-brand">
+              <img src={popcornLogoPath} alt="PopcornLobby" />
+              <span>PopcornLobby</span>
             </div>
-            <div className="status-row">
-              <span className="chip chip-live">Ready to launch</span>
-              <span className="chip">Service: {selectedService.name}</span>
-              <span className="chip">{backendLabel}</span>
-            </div>
-            <div className="header-actions compact-row">
-              <button type="button" onClick={openSettingsPage}>
-                Settings page
-              </button>
-              <button type="button" onClick={openAccountPage}>
-                Account page
-              </button>
-            </div>
-          </header>
-          <section className="sticky-video lobby-preview lobby-media-lock">
-            <h2>Top preview player</h2>
-            <p className="subtle">
-              Player-first layout: preview stays on top, while lobby setup and controls sit below.
-            </p>
+          </div>
+          <div className="popcorn-avatar" title={username || "Profile"}>
+            {(username || "U").charAt(0).toUpperCase()}
+          </div>
+        </header>
+        <div className="popcorn-configure-content" style={{ paddingBottom: 24 }}>
+          <h1 className="popcorn-configure-title">LOBBY SETUP</h1>
+          <section className="sticky-video lobby-preview" style={{ marginBottom: 20, borderRadius: 12, overflow: "hidden", background: "#000" }}>
             {youtubeEmbedPreview ? (
               <iframe
                 className="video-stage lobby-video-stage"
@@ -3385,18 +3387,14 @@ function App() {
                 title="YouTube preview"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                 allowFullScreen
+                style={{ width: "100%", aspectRatio: "16/9", display: "block" }}
               />
             ) : (
-              <video className="video-stage lobby-video-stage" src={lobbyPreviewUrl} controls playsInline muted />
-            )}
-            {selectedService.externalOnly && (
-              <p className="subtle">
-                External-service policy mode: official provider pages handle playback rights; preview remains in-app.
-              </p>
+              <video className="video-stage lobby-video-stage" src={lobbyPreviewUrl} controls playsInline muted style={{ width: "100%", aspectRatio: "16/9", display: "block" }} />
             )}
           </section>
           {RoomComposer}
-        </section>
+        </div>
         {SettingsSheet}
         {achievement && (
           <aside className="achievement-pop" role="status" aria-live="polite">
@@ -3404,509 +3402,140 @@ function App() {
             <p className="achievement-body">{achievement.body}</p>
           </aside>
         )}
-      </main>
+      </div>
     );
   }
 
   return (
-    <main
-      className={`app app-room viewport-lock ${themeClass} ${settings.reduceMotion ? "reduce-motion" : ""} ${
-        settings.cinematicButtons ? "cinematic-buttons" : ""
-      } ${settings.highContrast ? "high-contrast" : ""}`}
-    >
-      <div className="ambient ambient-a" />
-      <div className="ambient ambient-b" />
-      <section className="room-shell compact-page-shell">
-        <header className="room-header">
-          <p className="route-pill">Step 4 / 4 • Live room</p>
-          <div className="hero-topline">
-            <img src={brandLogoPath} alt="KinoPulse logo" className="brand-logo" />
-            <span className="hero-badge">Auto-login active for {username}</span>
+    <div className="popcorn-app popcorn-lobby-page">
+      <header className="popcorn-header popcorn-header-main">
+        <div className="popcorn-header-left">
+          <button type="button" className="popcorn-hamburger" onClick={() => setSettingsOpen(true)} aria-label="Menu">
+            <span />
+            <span />
+            <span />
+          </button>
+          <div className="popcorn-brand">
+            <img src={popcornLogoPath} alt="PopcornLobby" />
+            <span>PopcornLobby</span>
           </div>
-          <div className="status-row">
-            <span className="chip chip-live">Room active</span>
-            <span className="chip chip-safe">{syncHealth}</span>
-            <span className="chip">Role: {isHost ? "Host" : "Viewer"}</span>
-            <span className="chip">{roomState.privateLobby ? "Private lobby" : "Public lobby"}</span>
-            {roomState.chatLocked && <span className="chip">Chat locked</span>}
-            {roomState.slowModeSec > 0 && <span className="chip">Slow mode {roomState.slowModeSec}s</span>}
-          </div>
-          {roomState.announcement && <p className="announcement-banner">📣 {roomState.announcement}</p>}
-          <div className="header-actions compact-row">
-            <button type="button" onClick={openSettingsPage}>
-              Settings page
-            </button>
-            <button type="button" onClick={openAccountPage}>
-              Account page
-            </button>
-            <button type="button" onClick={switchProfile}>
-              Switch profile
-            </button>
-          </div>
-        </header>
+        </div>
+        <div className="popcorn-avatar" title={username || "Profile"}>
+          {(username || "U").charAt(0).toUpperCase()}
+        </div>
+      </header>
 
-        <section className="sticky-video room-player-lock" ref={playerShellRef}>
-          <h2>Sync console</h2>
-          <div className="sync-metrics">
-            <MetricTile label="Playback" value={roomState.playing ? "Playing" : "Paused"} />
-            <MetricTile label="Playhead" value={formatTime(videoRef.current?.currentTime ?? roomState.playhead)} />
-            <MetricTile label="Latency" value="98ms" />
+      <p className="popcorn-lobby-title">YOUR PRIVATE PARTY LOBBY</p>
+      <div className="popcorn-participants-row">
+        <div>
+          <div className="popcorn-host-avatar">
+            {(roomState.leader || username || "H").charAt(0).toUpperCase()}
           </div>
-          {useNativeVideoPlayer ? (
-            <video
-              className="video-stage"
-              ref={videoRef}
-              src={inAppVideoUrl}
-              preload="metadata"
-              playsInline
-              onTimeUpdate={handleVideoTimeUpdate}
-            >
-              <track
-                kind="subtitles"
-                src="/subtitles/bigbuckbunny_en.vtt"
-                srcLang="en"
-                label="English"
-                default={settings.subtitlesEnabled}
-              />
-            </video>
-          ) : roomYouTubeEmbedUrl ? (
-            <iframe
-              className="video-stage"
-              src={roomYouTubeEmbedUrl}
-              title="YouTube live room player"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-              allowFullScreen
+          <p className="popcorn-host-label">HOST</p>
+        </div>
+        <div className="popcorn-invite-slots">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="popcorn-invite-slot">+</div>
+          ))}
+        </div>
+        <p className="popcorn-inviting-label">Inviting...</p>
+      </div>
+
+      <div className="popcorn-video-wrap" ref={playerShellRef}>
+        {useNativeVideoPlayer ? (
+          <video
+            ref={videoRef}
+            src={inAppVideoUrl}
+            preload="metadata"
+            playsInline
+            onTimeUpdate={handleVideoTimeUpdate}
+          >
+            <track
+              kind="subtitles"
+              src="/subtitles/bigbuckbunny_en.vtt"
+              srcLang="en"
+              label="English"
+              default={settings.subtitlesEnabled}
             />
-          ) : (
-            <div className="external-player-card">
-              <p>Playback stays in the official {effectiveService.name} app/tab.</p>
-              <button type="button" onClick={openOfficialMedia}>
-                Open {effectiveService.name} now
-              </button>
-            </div>
-          )}
-        </section>
-
-        <section className="panel room-host-controls">
-          <div className="panel-head">
-            <h2>Host controls</h2>
-            <span className="chip">{isHost ? "Host authority active" : "Viewer tools"}</span>
-          </div>
-          <div className="player-utility-row">
-            <button type="button" onClick={toggleCaptions} disabled={!useNativeVideoPlayer}>
-              {captionsOn ? "Subtitles ON" : "Subtitles OFF"}
-            </button>
-            <button type="button" onClick={toggleFullscreen}>
-              {isFullscreen ? "Exit fullscreen" : "Fullscreen"}
-            </button>
-            <button type="button" onClick={togglePictureInPicture}>
-              {effectiveService.externalOnly ? "Open official PiP" : "Picture-in-picture"}
-            </button>
-            <button type="button" onClick={openVoiceRoom}>
-              Voice room
-            </button>
-            <button type="button" onClick={() => setVoiceTipsOpen((current) => !current)}>
-              Voice tips
-            </button>
-            <button type="button" onClick={copyCurrentRoomUrl}>
-              Copy URL
-            </button>
-          </div>
-          <label className="url-inline">
-            Stream URL
-            <input value={roomState.mediaUrl} readOnly />
-          </label>
-          {voiceTipsOpen && (
-            <p className="voice-tip">
-              Use headphones and push-to-talk for cleaner voice. Fast production-ready options: LiveKit,
-              Daily, Agora, or Jitsi rooms.
-            </p>
-          )}
-          {effectiveService.externalOnly && (
-            <p className="subtle">
-              {effectiveService.name} plays via official account flow. Preview is synced companion video.
-            </p>
-          )}
-          <div className="button-row compact-row">
-            <button type="button" onClick={togglePlayback} disabled={!isHost}>
-              {roomState.playing ? "Pause (host)" : "Play (host)"}
-            </button>
-            <button type="button" onClick={() => seekBy(10)} disabled={!isHost}>
-              +10s host
-            </button>
-            <button type="button" onClick={() => seekBy(-10)} disabled={!isHost}>
-              -10s host
-            </button>
-            <button type="button" onClick={syncNow}>
-              Sync now
-            </button>
-            <button type="button" onClick={openOfficialMedia}>
+          </video>
+        ) : roomYouTubeEmbedUrl ? (
+          <iframe
+            src={roomYouTubeEmbedUrl}
+            title="YouTube live room player"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowFullScreen
+          />
+        ) : (
+          <div style={{ padding: 24, textAlign: "center", color: "#94a3b8" }}>
+            <p>Playback in official {effectiveService.name} app</p>
+            <button type="button" onClick={openOfficialMedia} className="popcorn-start-btn" style={{ marginTop: 12 }}>
               Open {effectiveService.name}
             </button>
-            <button type="button" onClick={startServiceSignIn}>
-              Re-auth
-            </button>
           </div>
-          {isHost && (
-            <>
-              <div className="button-row compact-row">
-                <button type="button" onClick={togglePrivateLobby}>
-                  {roomState.privateLobby ? "Disable private mode" : "Enable private mode"}
-                </button>
-                <button type="button" onClick={toggleLobbyLock}>
-                  {roomState.locked ? "Unlock lobby" : "Lock lobby"}
-                </button>
-                <button type="button" onClick={toggleChatLock}>
-                  {roomState.chatLocked ? "Unlock chat" : "Lock chat"}
-                </button>
-              </div>
-              <div className="slow-mode-row">
-                <button type="button" onClick={() => setSlowMode(0)}>
-                  Slow off
-                </button>
-                <button type="button" onClick={() => setSlowMode(5)}>
-                  Slow 5s
-                </button>
-                <button type="button" onClick={() => setSlowMode(10)}>
-                  Slow 10s
-                </button>
-              </div>
-            </>
-          )}
-        </section>
-
-        <section className="tab-stage room-tab-stage">
-          {activeTab === "chat" && (
-            <section className="panel tab-panel chat-tab-panel">
-              <div className="panel-head">
-                <h2>Social lounge</h2>
-                <p className="subtle">Live room chat</p>
-              </div>
-              <div className="emoji-strip top-strip">
-                {emojiPacks.slice(0, 6).map((emoji) => (
-                  <button
-                    key={`top-${emoji}`}
-                    type="button"
-                    className="emoji-chip"
-                    onClick={() => sendEmoji(emoji)}
-                    disabled={(!rulesAccepted && !isHost) || (!!roomState.chatLocked && !isHost)}
-                  >
-                    {emoji}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  className="emoji-chip ai"
-                  onClick={sendAiEmoticon}
-                  disabled={(!rulesAccepted && !isHost) || (!!roomState.chatLocked && !isHost)}
-                >
-                  AI mood
-                </button>
-                {customEmoticons.slice(0, 3).map((emoticon) => (
-                  <button
-                    key={`top-custom-${emoticon.id}`}
-                    type="button"
-                    className="emoji-chip custom"
-                    onClick={() => sendCustomEmoticon(emoticon)}
-                    disabled={(!rulesAccepted && !isHost) || (!!roomState.chatLocked && !isHost)}
-                  >
-                    <img src={emoticon.src} alt={emoticon.label} />
-                  </button>
-                ))}
-              </div>
-
-              {!isHost && !rulesAccepted && (
-                <div className="rules-gate">
-                  <h3>Public room rules</h3>
-                  <ul>
-                    <li>No harassment, hate, or sexual content involving minors.</li>
-                    <li>No spam, doxxing, or violent threats.</li>
-                    <li>Respect copyright and platform policies.</li>
-                  </ul>
-                  <button type="button" onClick={acceptRules}>
-                    I agree
-                  </button>
-                </div>
-              )}
-
-              <div className="participants">
-                {participantProfiles.map((participant) => (
-                  <span key={participant.name} className={`pill pill-${participant.mood}`}>
-                    {participant.name}
-                  </span>
-                ))}
-              </div>
-              <div className={`chat-shell ${settings.compactChat ? "compact" : ""}`}>
-                {chatMessages.map((message) => (
-                  <ChatBubble key={message.id} message={message} showTimestamp={settings.showTimestamps} />
-                ))}
-              </div>
-              <div className="quick-row">
-                {quickSparkMessages.map((spark) => (
-                  <button
-                    key={spark}
-                    type="button"
-                    className="quick"
-                    onClick={() => sendQuickSpark(spark)}
-                    disabled={(!rulesAccepted && !isHost) || (!!roomState.chatLocked && !isHost)}
-                  >
-                    {spark}
-                  </button>
-                ))}
-              </div>
-              <div className="emoji-strip">
-                {emojiPacks.slice(0, 10).map((emoji) => (
-                  <button
-                    key={emoji}
-                    type="button"
-                    className="emoji-chip"
-                    onClick={() => sendEmoji(emoji)}
-                    disabled={(!rulesAccepted && !isHost) || (!!roomState.chatLocked && !isHost)}
-                  >
-                    {emoji}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  className="emoji-chip ai"
-                  onClick={sendAiEmoticon}
-                  disabled={(!rulesAccepted && !isHost) || (!!roomState.chatLocked && !isHost)}
-                >
-                  AI mood
-                </button>
-                {customEmoticons.slice(0, 6).map((emoticon) => (
-                  <button
-                    key={`custom-${emoticon.id}`}
-                    type="button"
-                    className="emoji-chip custom"
-                    onClick={() => sendCustomEmoticon(emoticon)}
-                    disabled={(!rulesAccepted && !isHost) || (!!roomState.chatLocked && !isHost)}
-                  >
-                    <img src={emoticon.src} alt={emoticon.label} />
-                  </button>
-                ))}
-              </div>
-              <form className="inline-form" onSubmit={handleSendChat}>
-                <input
-                  value={chatInput}
-                  onChange={(event) => setChatInput(event.target.value)}
-                  placeholder="Drop a message..."
-                  disabled={(!rulesAccepted && !isHost) || (!!roomState.chatLocked && !isHost)}
-                />
-                <button type="submit" disabled={(!rulesAccepted && !isHost) || (!!roomState.chatLocked && !isHost)}>
-                  Send
-                </button>
-              </form>
-              {chatError && <p className="warn">{chatError}</p>}
-              <div className="reactions">
-                <button type="button" onClick={() => setFireReactions((n) => n + 1)}>
-                  🔥 {fireReactions}
-                </button>
-                <button type="button" onClick={() => setHeartReactions((n) => n + 1)}>
-                  ❤️ {heartReactions}
-                </button>
-                <button type="button" onClick={() => setWowReactions((n) => n + 1)}>
-                  ⚡ {wowReactions}
-                </button>
-              </div>
-            </section>
-          )}
-
-          {activeTab === "participants" && (
-            <section className="panel tab-panel">
-              <div className="panel-head">
-                <h2>Participants</h2>
-                <p className="subtle">Roles, queue, and sync status</p>
-              </div>
-              <div className="participant-list">
-                {participantList.map((entry) => (
-                  <article key={entry.name} className="participant-item">
-                    <div>
-                      <strong>{entry.name}</strong>
-                      <p className="subtle">{entry.role === "host" ? "Host" : "Viewer"}</p>
-                    </div>
-                    <span className="chip">{entry.name === username ? "You" : "Synced"}</span>
-                  </article>
-                ))}
-              </div>
-              {roomState.joinQueue.length > 0 && (
-                <div className="queue-list">
-                  <h3>Pending join requests</h3>
-                  {roomState.joinQueue.map((requestUser) => (
-                    <div key={requestUser} className="queue-item">
-                      <span>@{requestUser}</span>
-                      {isHost ? (
-                        <div className="queue-actions">
-                          <button type="button" onClick={() => approveJoinRequest(requestUser)}>
-                            Approve
-                          </button>
-                          <button type="button" onClick={() => denyJoinRequest(requestUser)}>
-                            Deny
-                          </button>
-                        </div>
-                      ) : (
-                        <span className="subtle">Waiting for host</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-          )}
-
-          {activeTab === "tools" && isHost && (
-            <section className="panel tab-panel">
-              <h2>Host & moderation tools</h2>
-              <section className="queue-box">
-                <h3>Private lobby controls</h3>
-                <p className="subtle">Host has full pause/play/restart authority for everyone in room.</p>
-                <div className="button-row">
-                  <button type="button" onClick={togglePrivateLobby}>
-                    {roomState.privateLobby ? "Disable private mode" : "Enable private mode"}
-                  </button>
-                  <button type="button" onClick={toggleLobbyLock}>
-                    {roomState.locked ? "Unlock lobby" : "Lock lobby"}
-                  </button>
-                  <button type="button" onClick={toggleChatLock}>
-                    {roomState.chatLocked ? "Unlock chat" : "Lock chat"}
-                  </button>
-                </div>
-                <div className="slow-mode-row">
-                  <button type="button" onClick={() => setSlowMode(0)}>
-                    Slow off
-                  </button>
-                  <button type="button" onClick={() => setSlowMode(5)}>
-                    Slow 5s
-                  </button>
-                  <button type="button" onClick={() => setSlowMode(10)}>
-                    Slow 10s
-                  </button>
-                </div>
-                <div className="host-playback-row">
-                  <button type="button" onClick={pauseForAll}>
-                    Pause all
-                  </button>
-                  <button type="button" onClick={playForAll}>
-                    Play all
-                  </button>
-                  <button type="button" onClick={restartForAll}>
-                    Restart 00:00
-                  </button>
-                </div>
-                <div className="inline-form">
-                  <input
-                    value={announcementDraft}
-                    onChange={(event) => setAnnouncementDraft(event.target.value)}
-                    placeholder="Post announcement to all viewers..."
-                  />
-                  <button type="button" onClick={postAnnouncement}>
-                    Announce
-                  </button>
-                </div>
-                {roomState.announcement && (
-                  <button type="button" onClick={clearAnnouncement}>
-                    Clear announcement
-                  </button>
-                )}
-                {roomState.joinQueue.length > 0 && (
-                  <div className="queue-row-actions">
-                    <button type="button" onClick={approveAllJoinRequests}>
-                      Approve all
-                    </button>
-                    <button type="button" onClick={denyAllJoinRequests}>
-                      Deny all
-                    </button>
-                  </div>
-                )}
-              </section>
-
-              <section className="panel">
-                <h3>Trust and moderation</h3>
-                <ul>
-                  <li>Host-only playback controls and private lobby approvals.</li>
-                  <li>Report flow is available for harassment, hate, sexual, or copyright abuse.</li>
-                  <li>Fast moderation actions include mute, remove, and blocklist.</li>
-                </ul>
-                <div className="button-row">
-                  <button type="button" onClick={() => runModAction("Mute user")}>
-                    Mute user
-                  </button>
-                  <button type="button" onClick={() => runModAction("Remove user")}>
-                    Remove user
-                  </button>
-                  <button type="button" onClick={() => runModAction("Freeze room")}>
-                    Freeze room
-                  </button>
-                </div>
-                <form className="inline-form" onSubmit={addBlockedUser}>
-                  <input
-                    value={blockedUser}
-                    onChange={(event) => setBlockedUser(event.target.value)}
-                    placeholder="Block user handle..."
-                  />
-                  <button type="submit">Block</button>
-                </form>
-                {blockedUsers.length > 0 && (
-                  <p className="subtle">Blocked: {blockedUsers.map((u) => `@${u}`).join(", ")}</p>
-                )}
-                <form className="report" onSubmit={handleReport}>
-                  <h3>Report abuse</h3>
-                  <label>
-                    Reason
-                    <select value={reportReason} onChange={(event) => setReportReason(event.target.value)}>
-                      <option value="harassment">Harassment or bullying</option>
-                      <option value="hate">Hate or violent content</option>
-                      <option value="sexual">Sexual content involving minors</option>
-                      <option value="copyright">Copyright infringement</option>
-                    </select>
-                  </label>
-                  <label>
-                    Details
-                    <textarea
-                      value={reportDetails}
-                      onChange={(event) => setReportDetails(event.target.value)}
-                      placeholder="Describe what happened and include room/user IDs."
-                    />
-                  </label>
-                  <button type="submit">Submit report</button>
-                  {reportSubmitted && (
-                    <p className="ok">Report captured. Connect this form to backend moderation queue.</p>
-                  )}
-                </form>
-              </section>
-            </section>
-          )}
-        </section>
-
-        <nav
-          className="bottom-nav"
-          style={{ gridTemplateColumns: isHost ? "repeat(3, minmax(0, 1fr))" : "repeat(2, minmax(0, 1fr))" }}
-        >
-          <button
-            type="button"
-            className={activeTab === "chat" ? "active" : ""}
-            onClick={() => setActiveTab("chat")}
-          >
-            Chat
+        )}
+        <div className="popcorn-video-controls">
+          <button type="button" onClick={() => seekBy(-10)} disabled={!isHost} aria-label="Rewind">
+            ⏪
           </button>
-          <button
-            type="button"
-            className={activeTab === "participants" ? "active" : ""}
-            onClick={() => setActiveTab("participants")}
-          >
-            Participants
+          <button type="button" onClick={togglePlayback} disabled={!isHost} aria-label={roomState.playing ? "Pause" : "Play"}>
+            {roomState.playing ? "⏸" : "▶"}
           </button>
-          {isHost && (
-            <button
-              type="button"
-              className={activeTab === "tools" ? "active" : ""}
-              onClick={() => setActiveTab("tools")}
-            >
-              Host tools
-            </button>
-          )}
-        </nav>
+          <button type="button" onClick={() => seekBy(10)} disabled={!isHost} aria-label="Forward">
+            ⏩
+          </button>
+          <div className="popcorn-progress-bar">
+            <div
+              className="popcorn-progress-fill"
+              style={{
+                width: `${Math.min(100, ((videoRef.current?.currentTime ?? roomState.playhead) / (videoRef.current?.duration || 1)) * 100)}%`
+              }}
+            />
+          </div>
+          <span className="popcorn-time">
+            {formatTime(videoRef.current?.currentTime ?? roomState.playhead)} / {formatTime(videoRef.current?.duration || 0)}
+          </span>
+        </div>
+      </div>
+
+      <section className="popcorn-chat-section">
+        <h2 className="popcorn-chat-title">Party Chat</h2>
+        <div className="popcorn-chat-messages">
+          {chatMessages.map((msg) => (
+            <div key={msg.id} className="popcorn-chat-bubble">
+              <div className="popcorn-chat-avatar">{msg.user.charAt(0).toUpperCase()}</div>
+              <div className="popcorn-chat-content">
+                <p className="popcorn-chat-meta">
+                  <strong>{msg.user === roomState.leader ? `(Host: ${msg.user}) ` : `${msg.user}: `}</strong>
+                  <span className="popcorn-chat-text">{msg.text}</span>
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+        <form className="inline-form" onSubmit={handleSendChat} style={{ display: "flex", gap: 8, marginTop: 8 }}>
+          <input
+            value={chatInput}
+            onChange={(e) => setChatInput(e.target.value)}
+            placeholder="Drop a message..."
+            disabled={(!rulesAccepted && !isHost) || (!!roomState.chatLocked && !isHost)}
+          />
+          <button type="submit" disabled={(!rulesAccepted && !isHost) || (!!roomState.chatLocked && !isHost)}>
+            Send
+          </button>
+        </form>
       </section>
+
+      <button
+        type="button"
+        className="popcorn-manage-btn"
+        onClick={() => {
+          copyInvite();
+          setSettingsOpen(true);
+        }}
+      >
+        Manage Lobby & Invite
+      </button>
+
       {SettingsSheet}
       {achievement && (
         <aside className="achievement-pop" role="status" aria-live="polite">
@@ -3914,7 +3543,7 @@ function App() {
           <p className="achievement-body">{achievement.body}</p>
         </aside>
       )}
-    </main>
+    </div>
   );
 }
 

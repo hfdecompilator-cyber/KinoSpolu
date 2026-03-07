@@ -1698,3 +1698,826 @@ button:disabled {
     transform: translateY(0) scale(1);
   }
 }
+
+/* ========== PopcornLobby UI ========== */
+.popcorn-app {
+  min-height: 100vh;
+  background: #0a0e1a;
+  position: relative;
+  overflow-x: hidden;
+}
+
+.popcorn-particles {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background: radial-gradient(ellipse 80% 50% at 50% 100%, rgba(255, 140, 50, 0.15) 0%, transparent 50%),
+    radial-gradient(ellipse 60% 40% at 20% 90%, rgba(255, 180, 80, 0.08) 0%, transparent 40%),
+    radial-gradient(ellipse 50% 30% at 80% 85%, rgba(255, 120, 40, 0.1) 0%, transparent 35%);
+}
+
+.popcorn-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  position: relative;
+  z-index: 10;
+  background: rgba(10, 14, 26, 0.85);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.popcorn-menu-btn {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  color: #fff;
+  padding: 0;
+  animation: none;
+  box-shadow: none;
+}
+
+.popcorn-menu-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  transform: none;
+}
+
+.popcorn-logo-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.popcorn-logo-wrap img {
+  width: 32px;
+  height: 32px;
+}
+
+.popcorn-logo-text {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.02em;
+}
+
+.popcorn-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: #fff;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.popcorn-configure {
+  padding: 24px 20px 32px;
+  max-width: 480px;
+  margin: 0 auto;
+  position: relative;
+  z-index: 5;
+}
+
+.popcorn-configure h1 {
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #fff;
+  text-align: center;
+  margin-bottom: 28px;
+  line-height: 1.3;
+}
+
+.popcorn-section-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #94a3b8;
+  margin-bottom: 12px;
+}
+
+.popcorn-service-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.popcorn-service-icon {
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 0.85rem;
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: rgba(30, 41, 59, 0.9);
+  padding: 0;
+  animation: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.popcorn-service-icon:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.5);
+}
+
+.popcorn-service-icon.selected {
+  border-color: #22d3ee;
+  box-shadow: 0 0 0 2px #22d3ee, 0 0 20px rgba(34, 211, 238, 0.3);
+}
+
+.popcorn-search-wrap {
+  position: relative;
+  margin-bottom: 20px;
+}
+
+.popcorn-search-wrap input {
+  padding-left: 44px;
+}
+
+.popcorn-search-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  color: #64748b;
+  pointer-events: none;
+}
+
+.popcorn-cta-blue {
+  width: 100%;
+  padding: 16px 20px;
+  font-size: 1rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  border: none;
+  border-radius: 14px;
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 24px;
+  box-shadow: 0 4px 20px rgba(37, 99, 235, 0.4);
+  transition: transform 0.15s, box-shadow 0.15s;
+  animation: none;
+}
+
+.popcorn-cta-blue:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 24px rgba(37, 99, 235, 0.5);
+}
+
+.popcorn-cta-blue:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.popcorn-party-lobby {
+  padding: 16px;
+  position: relative;
+  z-index: 5;
+  min-height: 100vh;
+}
+
+.popcorn-lobby-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: #64748b;
+  margin-bottom: 16px;
+}
+
+.popcorn-participants-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.popcorn-host-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 3px solid #22c55e;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: #fff;
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  position: relative;
+}
+
+.popcorn-host-avatar::after {
+  content: "✓";
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 20px;
+  height: 20px;
+  background: #22c55e;
+  border-radius: 50%;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+
+.popcorn-host-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #22c55e;
+  margin-top: 4px;
+}
+
+.popcorn-invite-slots {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.popcorn-invite-slot {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 2px dashed rgba(148, 163, 184, 0.5);
+  background: rgba(30, 41, 59, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  font-size: 1.2rem;
+}
+
+.popcorn-inviting {
+  font-size: 0.75rem;
+  color: #64748b;
+  margin-top: 6px;
+}
+
+.popcorn-video-wrap {
+  border-radius: 12px;
+  overflow: hidden;
+  background: #000;
+  margin-bottom: 20px;
+  position: relative;
+}
+
+.popcorn-video-wrap video,
+.popcorn-video-wrap iframe {
+  width: 100%;
+  aspect-ratio: 16/9;
+  display: block;
+}
+
+.popcorn-video-controls {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 12px 16px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+}
+
+.popcorn-video-controls button {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  border: none;
+  animation: none;
+  box-shadow: none;
+}
+
+.popcorn-video-controls button:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.popcorn-progress-bar {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 2px;
+  margin-top: 8px;
+  overflow: hidden;
+}
+
+.popcorn-progress-fill {
+  height: 100%;
+  background: #fff;
+  border-radius: 2px;
+  transition: width 0.1s linear;
+}
+
+.popcorn-time-display {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.9);
+  margin-top: 4px;
+}
+
+.popcorn-chat-section {
+  margin-top: 20px;
+}
+
+.popcorn-chat-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 12px;
+}
+
+.popcorn-chat-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 200px;
+  overflow-y: auto;
+  margin-bottom: 16px;
+}
+
+.popcorn-chat-bubble {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.popcorn-chat-bubble img {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.popcorn-chat-bubble-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.popcorn-chat-bubble-content p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #e2e8f0;
+  line-height: 1.4;
+}
+
+.popcorn-chat-bubble-content p strong {
+  color: #fff;
+}
+
+.popcorn-cta-orange {
+  width: 100%;
+  padding: 16px 20px;
+  font-size: 1rem;
+  font-weight: 700;
+  background: linear-gradient(180deg, #f97316, #ea580c);
+  border: none;
+  border-radius: 14px;
+  color: #fff;
+  cursor: pointer;
+  margin-top: 16px;
+  box-shadow: 0 4px 20px rgba(249, 115, 22, 0.35);
+  transition: transform 0.15s, box-shadow 0.15s;
+  animation: none;
+}
+
+.popcorn-cta-orange:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 24px rgba(249, 115, 22, 0.45);
+}
+
+/* ========== PopcornLobby Header & Layout ========== */
+.popcorn-header-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: rgba(8, 12, 24, 0.9);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.popcorn-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.popcorn-hamburger {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  box-shadow: none;
+  animation: none;
+}
+.popcorn-hamburger span {
+  display: block;
+  width: 18px;
+  height: 2px;
+  background: #fff;
+  border-radius: 1px;
+}
+.popcorn-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.popcorn-brand img {
+  width: 28px;
+  height: 28px;
+}
+.popcorn-brand span {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #fff;
+}
+.popcorn-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #4a5568, #2d3748);
+  display: grid;
+  place-items: center;
+  color: #a0aec0;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.popcorn-configure {
+  min-height: 100vh;
+  background: #0a0e1a;
+  position: relative;
+  overflow: hidden;
+}
+.popcorn-particles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.popcorn-particle {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 180, 80, 0.8), transparent);
+  animation: particle-float 8s ease-in-out infinite;
+}
+.popcorn-particle:nth-child(1) { left: 10%; top: 80%; animation-delay: 0s; }
+.popcorn-particle:nth-child(2) { left: 25%; top: 70%; animation-delay: 1.2s; }
+.popcorn-particle:nth-child(3) { left: 40%; top: 85%; animation-delay: 2.4s; }
+.popcorn-particle:nth-child(4) { left: 60%; top: 75%; animation-delay: 0.8s; }
+.popcorn-particle:nth-child(5) { left: 75%; top: 82%; animation-delay: 1.8s; }
+.popcorn-particle:nth-child(6) { left: 90%; top: 78%; animation-delay: 2.8s; }
+.popcorn-particle:nth-child(7) { left: 15%; top: 60%; animation-delay: 0.4s; }
+.popcorn-particle:nth-child(8) { left: 85%; top: 65%; animation-delay: 1.6s; }
+@keyframes particle-float {
+  0%, 100% { opacity: 0.3; transform: translateY(0) scale(1); }
+  50% { opacity: 0.8; transform: translateY(-20px) scale(1.2); }
+}
+.popcorn-configure-content {
+  position: relative;
+  z-index: 1;
+  padding: 24px 20px 32px;
+  max-width: 420px;
+  margin: 0 auto;
+}
+.popcorn-configure-title {
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #fff;
+  text-align: center;
+  margin-bottom: 28px;
+}
+.popcorn-section-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #94a3b8;
+  margin-bottom: 12px;
+}
+.popcorn-service-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.popcorn-service-icon {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  background: rgba(30, 41, 59, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: none;
+  animation: none;
+}
+.popcorn-service-icon:hover {
+  transform: scale(1.05);
+  border-color: rgba(96, 165, 250, 0.5);
+}
+.popcorn-service-icon.selected {
+  border-color: #22d3ee;
+  box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.4), 0 0 20px rgba(34, 211, 238, 0.3);
+}
+.popcorn-service-icon.more {
+  font-size: 1.2rem;
+  color: #64748b;
+}
+.popcorn-search-wrap {
+  position: relative;
+  margin-bottom: 20px;
+}
+.popcorn-search-wrap svg {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  color: #64748b;
+}
+.popcorn-search-wrap input {
+  padding-left: 44px;
+}
+.popcorn-start-btn {
+  width: 100%;
+  padding: 16px 20px;
+  font-size: 1rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  border: none;
+  border-radius: 14px;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  cursor: pointer;
+  margin-top: 24px;
+  box-shadow: 0 4px 20px rgba(37, 99, 235, 0.4);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.popcorn-start-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 24px rgba(37, 99, 235, 0.5);
+}
+.popcorn-start-btn svg {
+  width: 20px;
+  height: 20px;
+}
+.popcorn-lobby-page {
+  min-height: 100vh;
+  background: #0a0e1a;
+  display: flex;
+  flex-direction: column;
+}
+.popcorn-lobby-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: #64748b;
+  padding: 16px 20px 8px;
+}
+.popcorn-participants-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  padding: 12px 20px 20px;
+}
+.popcorn-host-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 3px solid #22c55e;
+  background: linear-gradient(135deg, #374151, #1f2937);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #9ca3af;
+  font-size: 1.2rem;
+  font-weight: 600;
+  position: relative;
+}
+.popcorn-host-avatar::after {
+  content: "✓";
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #22c55e;
+  color: #fff;
+  font-size: 0.7rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.popcorn-host-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #22c55e;
+  margin-top: 6px;
+  text-align: center;
+}
+.popcorn-invite-slots {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+}
+.popcorn-invite-slot {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 2px dashed rgba(148, 163, 184, 0.5);
+  background: rgba(30, 41, 59, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  font-size: 1.2rem;
+}
+.popcorn-inviting-label {
+  font-size: 0.75rem;
+  color: #64748b;
+  margin-top: 6px;
+  text-align: center;
+}
+.popcorn-video-wrap {
+  position: relative;
+  aspect-ratio: 16/9;
+  background: #000;
+  margin: 0 20px 16px;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.popcorn-video-wrap video,
+.popcorn-video-wrap iframe {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.popcorn-video-controls {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 12px 16px;
+  background: linear-gradient(transparent, rgba(0,0,0,0.8));
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.popcorn-video-controls button {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  background: rgba(255,255,255,0.2);
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: none;
+  animation: none;
+}
+.popcorn-video-controls button:hover {
+  background: rgba(255,255,255,0.3);
+}
+.popcorn-progress-bar {
+  flex: 1;
+  height: 4px;
+  background: rgba(255,255,255,0.3);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.popcorn-progress-fill {
+  height: 100%;
+  background: #fff;
+  border-radius: 2px;
+  width: 30%;
+}
+.popcorn-time {
+  font-size: 0.75rem;
+  color: rgba(255,255,255,0.9);
+}
+.popcorn-chat-section {
+  flex: 1;
+  min-height: 0;
+  padding: 0 20px 20px;
+  display: flex;
+  flex-direction: column;
+}
+.popcorn-chat-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 12px;
+}
+.popcorn-chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 12px;
+}
+.popcorn-chat-bubble {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.popcorn-chat-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #4a5568, #2d3748);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #9ca3af;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.popcorn-chat-content {
+  flex: 1;
+  min-width: 0;
+}
+.popcorn-chat-meta {
+  font-size: 0.8rem;
+  color: #94a3b8;
+  margin-bottom: 2px;
+}
+.popcorn-chat-meta strong {
+  color: #e2e8f0;
+}
+.popcorn-chat-text {
+  font-size: 0.9rem;
+  color: #cbd5e1;
+  line-height: 1.4;
+}
+.popcorn-manage-btn {
+  width: calc(100% - 40px);
+  margin: 0 20px 24px;
+  padding: 16px 20px;
+  font-size: 1rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #ea580c, #f97316);
+  border: none;
+  border-radius: 14px;
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(234, 88, 12, 0.4);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.popcorn-manage-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 24px rgba(234, 88, 12, 0.5);
+}
