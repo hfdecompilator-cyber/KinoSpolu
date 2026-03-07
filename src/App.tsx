@@ -3459,18 +3459,20 @@ function App() {
 
       <p className="popcorn-lobby-title">YOUR PRIVATE PARTY LOBBY</p>
       <div className="popcorn-participants-row">
-        <div>
+        <div className="popcorn-host-block">
           <div className="popcorn-host-avatar">
             {(roomState.leader || username || "H").charAt(0).toUpperCase()}
           </div>
           <p className="popcorn-host-label">HOST</p>
         </div>
-        <div className="popcorn-invite-slots">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="popcorn-invite-slot">+</div>
-          ))}
+        <div className="popcorn-invite-block">
+          <div className="popcorn-invite-slots">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="popcorn-invite-slot">+</div>
+            ))}
+          </div>
+          <p className="popcorn-inviting-label">Inviting...</p>
         </div>
-        <p className="popcorn-inviting-label">Inviting...</p>
       </div>
 
       <div className="popcorn-video-wrap" ref={playerShellRef}>
