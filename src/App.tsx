@@ -1,4 +1,5 @@
 import {
+  type CSSProperties,
   ChangeEvent,
   FormEvent,
   memo,
@@ -1593,6 +1594,16 @@ function App() {
   const generateRoomCode = useCallback(() => {
     setRoomCode(`PULSE${Math.floor(Math.random() * 900 + 100)}`);
   }, []);
+
+  useEffect(() => {
+    if (currentPath !== "/lobby" || normalizedRoomCode) return;
+    generateRoomCode();
+  }, [currentPath, generateRoomCode, normalizedRoomCode]);
+
+  useEffect(() => {
+    if (currentPath !== "/lobby" || rightsConfirmed) return;
+    setRightsConfirmed(true);
+  }, [currentPath, rightsConfirmed]);
 
   const copyRoomCode = useCallback(() => {
     if (!normalizedRoomCode) {
@@ -3343,60 +3354,103 @@ function App() {
     </div>
   ) : null;
 
+  const liveLobbySlots = [
+    { name: username, status: "HOST", online: true },
+    ...participantProfiles.slice(1, 4).map((participant) => ({
+      name: participant.name,
+      status: "Inviting...",
+      online: false
+    }))
+  ];
+
   if (currentPath === "/lobby" || !partyLive) {
     return (
       <main
-        className={`app app-pre-room viewport-lock ${themeClass} ${settings.reduceMotion ? "reduce-motion" : ""} ${
-          settings.cinematicButtons ? "cinematic-buttons" : ""
-        } ${settings.highContrast ? "high-contrast" : ""}`}
+        className={`app app-pre-room viewport-lock reference-scene ${themeClass} ${
+          settings.reduceMotion ? "reduce-motion" : ""
+        } ${settings.cinematicButtons ? "cinematic-buttons" : ""} ${settings.highContrast ? "high-contrast" : ""}`}
       >
-        <div className="ambient ambient-a" />
-        <div className="ambient ambient-b" />
-        <section className="card pre-room-card compact-page-shell">
-          <header className="hero">
-            <p className="route-pill">Step 3 / 4 • Lobby setup</p>
-            <div className="hero-topline">
-              <img src={brandLogoPath} alt="KinoPulse logo" className="brand-logo" />
-              <span className="hero-badge">Auto-login active for {username}</span>
-            </div>
-            <div className="status-row">
-              <span className="chip chip-live">Ready to launch</span>
-              <span className="chip">Service: {selectedService.name}</span>
-              <span className="chip">{backendLabel}</span>
-            </div>
-            <div className="header-actions compact-row">
-              <button type="button" onClick={openSettingsPage}>
-                Settings page
+        <section className="reference-handset">
+          <div className="reference-notch" />
+          <div className="reference-screen">
+            <header className="reference-topbar">
+              <button type="button" className="reference-icon-btn" onClick={() => setSettingsOpen(true)}>
+                ☰
               </button>
-              <button type="button" onClick={openAccountPage}>
-                Account page
+              <div className="reference-brand">
+                <span className="reference-brand-icon">🍿</span>
+                <span>PopcornLobby</span>
+              </div>
+              <button type="button" className="reference-profile-btn" onClick={openAccountPage}>
+                {username.slice(0, 2).toUpperCase()}
               </button>
-            </div>
-          </header>
-          <section className="sticky-video lobby-preview lobby-media-lock">
-            <h2>Top preview player</h2>
-            <p className="subtle">
-              Player-first layout: preview stays on top, while lobby setup and controls sit below.
-            </p>
-            {youtubeEmbedPreview ? (
-              <iframe
-                className="video-stage lobby-video-stage"
-                src={youtubeEmbedPreview}
-                title="YouTube preview"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                allowFullScreen
+            </header>
+
+            <h1 className="reference-title">Configure your private party</h1>
+
+            <section className="reference-step">
+              <h2>1. Choose Your Streaming Service</h2>
+              <div className="reference-service-grid">
+                {serviceCatalog.slice(0, 8).map((service) => (
+                  <button
+                    key={service.id}
+                    type="button"
+                    className={`reference-service-btn ${selectedService.id === service.id ? "active" : ""}`}
+                    onClick={() => persistServiceChoice(service.id)}
+                    style={{ "--tile-accent": service.accent } as CSSProperties}
+                    title={service.name}
+                  >
+                    {service.tag.toLowerCase()}
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <section className="reference-step">
+              <h2>2. Enter Video Link or Search</h2>
+              <label className="reference-input-shell">
+                <span>🔍</span>
+                <input
+                  value={watchUrl}
+                  onChange={(event) => setWatchUrl(event.target.value)}
+                  placeholder="Paste a URL or search for content..."
+                />
+              </label>
+            </section>
+
+            <section className="reference-step">
+              <h2>3. Name Your Party (Optional)</h2>
+              <input
+                className="reference-party-input"
+                value={mediaTitle}
+                onChange={(event) => setMediaTitle(event.target.value)}
+                placeholder="e.g., Friday Movie Night"
               />
-            ) : (
-              <video className="video-stage lobby-video-stage" src={lobbyPreviewUrl} controls playsInline muted />
+            </section>
+
+            <button disabled={launchDisabled} type="button" className="reference-cta" onClick={handleLaunchRoom}>
+              🔒 Start Party &amp; Get Invite Link
+            </button>
+
+            <div className="reference-inline-actions">
+              <button type="button" onClick={handleJoinRoom}>
+                Join existing room
+              </button>
+              <button type="button" onClick={copyInvite}>
+                Copy invite
+              </button>
+            </div>
+
+            {allowedDomainStatus === "allowed" && <p className="reference-feedback ok">Service URL verified.</p>}
+            {allowedDomainStatus === "blocked" && selectedService.externalOnly && (
+              <p className="reference-feedback warn">Use a matching {selectedService.name} link for launch.</p>
             )}
-            {selectedService.externalOnly && (
-              <p className="subtle">
-                External-service policy mode: official provider pages handle playback rights; preview remains in-app.
-              </p>
-            )}
-          </section>
-          {RoomComposer}
+            {allowedDomainStatus === "invalid" && <p className="reference-feedback warn">Use a valid https:// URL.</p>}
+            {authError && <p className="reference-feedback warn">{authError}</p>}
+            {notice && <p className="reference-feedback ok">{notice}</p>}
+          </div>
         </section>
+        <span className="reference-corner-spark">✦</span>
         {SettingsSheet}
         {achievement && (
           <aside className="achievement-pop" role="status" aria-live="polite">
@@ -3408,505 +3462,118 @@ function App() {
     );
   }
 
+  const visibleChat = chatMessages.slice(-4);
+
   return (
     <main
-      className={`app app-room viewport-lock ${themeClass} ${settings.reduceMotion ? "reduce-motion" : ""} ${
+      className={`app app-room viewport-lock reference-scene ${themeClass} ${settings.reduceMotion ? "reduce-motion" : ""} ${
         settings.cinematicButtons ? "cinematic-buttons" : ""
       } ${settings.highContrast ? "high-contrast" : ""}`}
     >
-      <div className="ambient ambient-a" />
-      <div className="ambient ambient-b" />
-      <section className="room-shell compact-page-shell">
-        <header className="room-header">
-          <p className="route-pill">Step 4 / 4 • Live room</p>
-          <div className="hero-topline">
-            <img src={brandLogoPath} alt="KinoPulse logo" className="brand-logo" />
-            <span className="hero-badge">Auto-login active for {username}</span>
-          </div>
-          <div className="status-row">
-            <span className="chip chip-live">Room active</span>
-            <span className="chip chip-safe">{syncHealth}</span>
-            <span className="chip">Role: {isHost ? "Host" : "Viewer"}</span>
-            <span className="chip">{roomState.privateLobby ? "Private lobby" : "Public lobby"}</span>
-            {roomState.chatLocked && <span className="chip">Chat locked</span>}
-            {roomState.slowModeSec > 0 && <span className="chip">Slow mode {roomState.slowModeSec}s</span>}
-          </div>
-          {roomState.announcement && <p className="announcement-banner">📣 {roomState.announcement}</p>}
-          <div className="header-actions compact-row">
-            <button type="button" onClick={openSettingsPage}>
-              Settings page
+      <section className="reference-handset reference-handset-live">
+        <div className="reference-notch" />
+        <div className="reference-screen">
+          <header className="reference-topbar">
+            <button type="button" className="reference-icon-btn" onClick={() => setSettingsOpen(true)}>
+              ☰
             </button>
-            <button type="button" onClick={openAccountPage}>
-              Account page
+            <div className="reference-brand">
+              <span className="reference-brand-icon">🍿</span>
+              <span>PopcornLobby</span>
+            </div>
+            <button type="button" className="reference-profile-btn" onClick={openAccountPage}>
+              {username.slice(0, 2).toUpperCase()}
             </button>
-            <button type="button" onClick={switchProfile}>
-              Switch profile
-            </button>
-          </div>
-        </header>
+          </header>
 
-        <section className="sticky-video room-player-lock" ref={playerShellRef}>
-          <h2>Sync console</h2>
-          <div className="sync-metrics">
-            <MetricTile label="Playback" value={roomState.playing ? "Playing" : "Paused"} />
-            <MetricTile label="Playhead" value={formatTime(videoRef.current?.currentTime ?? roomState.playhead)} />
-            <MetricTile label="Latency" value="98ms" />
+          <h2 className="reference-room-label">Your private party lobby</h2>
+
+          <div className="reference-participants">
+            {liveLobbySlots.map((slot, index) => (
+              <article key={`${slot.name}-${index}`} className={`reference-participant ${slot.online ? "online" : ""}`}>
+                <div className="reference-avatar">{slot.name.slice(0, 1).toUpperCase()}</div>
+                <div className="reference-participant-meta">
+                  <strong>{slot.status}</strong>
+                  <span>{slot.online ? slot.name : "Inviting..."}</span>
+                </div>
+              </article>
+            ))}
           </div>
-          {useNativeVideoPlayer ? (
-            <video
-              className="video-stage"
-              ref={videoRef}
-              src={inAppVideoUrl}
-              preload="metadata"
-              playsInline
-              onTimeUpdate={handleVideoTimeUpdate}
-            >
-              <track
-                kind="subtitles"
-                src="/subtitles/bigbuckbunny_en.vtt"
-                srcLang="en"
-                label="English"
-                default={settings.subtitlesEnabled}
+
+          <section className="reference-video-wrap" ref={playerShellRef}>
+            {useNativeVideoPlayer ? (
+              <video
+                className="video-stage reference-video"
+                ref={videoRef}
+                src={inAppVideoUrl}
+                preload="metadata"
+                playsInline
+                onTimeUpdate={handleVideoTimeUpdate}
+              >
+                <track
+                  kind="subtitles"
+                  src="/subtitles/bigbuckbunny_en.vtt"
+                  srcLang="en"
+                  label="English"
+                  default={settings.subtitlesEnabled}
+                />
+              </video>
+            ) : roomYouTubeEmbedUrl ? (
+              <iframe
+                className="video-stage reference-video"
+                src={roomYouTubeEmbedUrl}
+                title="YouTube live room player"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
               />
-            </video>
-          ) : roomYouTubeEmbedUrl ? (
-            <iframe
-              className="video-stage"
-              src={roomYouTubeEmbedUrl}
-              title="YouTube live room player"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-              allowFullScreen
-            />
-          ) : (
-            <div className="external-player-card">
-              <p>Playback stays in the official {effectiveService.name} app/tab.</p>
-              <button type="button" onClick={openOfficialMedia}>
-                Open {effectiveService.name} now
+            ) : (
+              <video className="video-stage reference-video" src={lobbyPreviewUrl} controls playsInline />
+            )}
+            <div className="reference-player-controls">
+              <button type="button" onClick={() => seekBy(-10)} disabled={!isHost}>
+                ⏮
+              </button>
+              <button type="button" onClick={togglePlayback} disabled={!isHost}>
+                {roomState.playing ? "⏸" : "▶"}
+              </button>
+              <button type="button" onClick={() => seekBy(10)} disabled={!isHost}>
+                ⏭
               </button>
             </div>
-          )}
-        </section>
+          </section>
 
-        <section className="panel room-host-controls">
-          <div className="panel-head">
-            <h2>Host controls</h2>
-            <span className="chip">{isHost ? "Host authority active" : "Viewer tools"}</span>
-          </div>
-          <div className="player-utility-row">
-            <button type="button" onClick={toggleCaptions} disabled={!useNativeVideoPlayer}>
-              {captionsOn ? "Subtitles ON" : "Subtitles OFF"}
-            </button>
-            <button type="button" onClick={toggleFullscreen}>
-              {isFullscreen ? "Exit fullscreen" : "Fullscreen"}
-            </button>
-            <button type="button" onClick={togglePictureInPicture}>
-              {effectiveService.externalOnly ? "Open official PiP" : "Picture-in-picture"}
-            </button>
-            <button type="button" onClick={openVoiceRoom}>
-              Voice room
-            </button>
-            <button type="button" onClick={() => setVoiceTipsOpen((current) => !current)}>
-              Voice tips
-            </button>
-            <button type="button" onClick={copyCurrentRoomUrl}>
-              Copy URL
-            </button>
-          </div>
-          <label className="url-inline">
-            Stream URL
-            <input value={roomState.mediaUrl} readOnly />
-          </label>
-          {voiceTipsOpen && (
-            <p className="voice-tip">
-              Use headphones and push-to-talk for cleaner voice. Fast production-ready options: LiveKit,
-              Daily, Agora, or Jitsi rooms.
-            </p>
-          )}
-          {effectiveService.externalOnly && (
-            <p className="subtle">
-              {effectiveService.name} plays via official account flow. Preview is synced companion video.
-            </p>
-          )}
-          <div className="button-row compact-row">
-            <button type="button" onClick={togglePlayback} disabled={!isHost}>
-              {roomState.playing ? "Pause (host)" : "Play (host)"}
-            </button>
-            <button type="button" onClick={() => seekBy(10)} disabled={!isHost}>
-              +10s host
-            </button>
-            <button type="button" onClick={() => seekBy(-10)} disabled={!isHost}>
-              -10s host
-            </button>
-            <button type="button" onClick={syncNow}>
-              Sync now
-            </button>
-            <button type="button" onClick={openOfficialMedia}>
-              Open {effectiveService.name}
-            </button>
-            <button type="button" onClick={startServiceSignIn}>
-              Re-auth
-            </button>
-          </div>
-          {isHost && (
-            <>
-              <div className="button-row compact-row">
-                <button type="button" onClick={togglePrivateLobby}>
-                  {roomState.privateLobby ? "Disable private mode" : "Enable private mode"}
-                </button>
-                <button type="button" onClick={toggleLobbyLock}>
-                  {roomState.locked ? "Unlock lobby" : "Lock lobby"}
-                </button>
-                <button type="button" onClick={toggleChatLock}>
-                  {roomState.chatLocked ? "Unlock chat" : "Lock chat"}
-                </button>
-              </div>
-              <div className="slow-mode-row">
-                <button type="button" onClick={() => setSlowMode(0)}>
-                  Slow off
-                </button>
-                <button type="button" onClick={() => setSlowMode(5)}>
-                  Slow 5s
-                </button>
-                <button type="button" onClick={() => setSlowMode(10)}>
-                  Slow 10s
-                </button>
-              </div>
-            </>
-          )}
-        </section>
-
-        <section className="tab-stage room-tab-stage">
-          {activeTab === "chat" && (
-            <section className="panel tab-panel chat-tab-panel">
-              <div className="panel-head">
-                <h2>Social lounge</h2>
-                <p className="subtle">Live room chat</p>
-              </div>
-              <div className="emoji-strip top-strip">
-                {emojiPacks.slice(0, 6).map((emoji) => (
-                  <button
-                    key={`top-${emoji}`}
-                    type="button"
-                    className="emoji-chip"
-                    onClick={() => sendEmoji(emoji)}
-                    disabled={(!rulesAccepted && !isHost) || (!!roomState.chatLocked && !isHost)}
-                  >
-                    {emoji}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  className="emoji-chip ai"
-                  onClick={sendAiEmoticon}
-                  disabled={(!rulesAccepted && !isHost) || (!!roomState.chatLocked && !isHost)}
-                >
-                  AI mood
-                </button>
-                {customEmoticons.slice(0, 3).map((emoticon) => (
-                  <button
-                    key={`top-custom-${emoticon.id}`}
-                    type="button"
-                    className="emoji-chip custom"
-                    onClick={() => sendCustomEmoticon(emoticon)}
-                    disabled={(!rulesAccepted && !isHost) || (!!roomState.chatLocked && !isHost)}
-                  >
-                    <img src={emoticon.src} alt={emoticon.label} />
-                  </button>
-                ))}
-              </div>
-
-              {!isHost && !rulesAccepted && (
-                <div className="rules-gate">
-                  <h3>Public room rules</h3>
-                  <ul>
-                    <li>No harassment, hate, or sexual content involving minors.</li>
-                    <li>No spam, doxxing, or violent threats.</li>
-                    <li>Respect copyright and platform policies.</li>
-                  </ul>
-                  <button type="button" onClick={acceptRules}>
-                    I agree
-                  </button>
-                </div>
-              )}
-
-              <div className="participants">
-                {participantProfiles.map((participant) => (
-                  <span key={participant.name} className={`pill pill-${participant.mood}`}>
-                    {participant.name}
-                  </span>
-                ))}
-              </div>
-              <div className={`chat-shell ${settings.compactChat ? "compact" : ""}`}>
-                {chatMessages.map((message) => (
-                  <ChatBubble key={message.id} message={message} showTimestamp={settings.showTimestamps} />
-                ))}
-              </div>
-              <div className="quick-row">
-                {quickSparkMessages.map((spark) => (
-                  <button
-                    key={spark}
-                    type="button"
-                    className="quick"
-                    onClick={() => sendQuickSpark(spark)}
-                    disabled={(!rulesAccepted && !isHost) || (!!roomState.chatLocked && !isHost)}
-                  >
-                    {spark}
-                  </button>
-                ))}
-              </div>
-              <div className="emoji-strip">
-                {emojiPacks.slice(0, 10).map((emoji) => (
-                  <button
-                    key={emoji}
-                    type="button"
-                    className="emoji-chip"
-                    onClick={() => sendEmoji(emoji)}
-                    disabled={(!rulesAccepted && !isHost) || (!!roomState.chatLocked && !isHost)}
-                  >
-                    {emoji}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  className="emoji-chip ai"
-                  onClick={sendAiEmoticon}
-                  disabled={(!rulesAccepted && !isHost) || (!!roomState.chatLocked && !isHost)}
-                >
-                  AI mood
-                </button>
-                {customEmoticons.slice(0, 6).map((emoticon) => (
-                  <button
-                    key={`custom-${emoticon.id}`}
-                    type="button"
-                    className="emoji-chip custom"
-                    onClick={() => sendCustomEmoticon(emoticon)}
-                    disabled={(!rulesAccepted && !isHost) || (!!roomState.chatLocked && !isHost)}
-                  >
-                    <img src={emoticon.src} alt={emoticon.label} />
-                  </button>
-                ))}
-              </div>
-              <form className="inline-form" onSubmit={handleSendChat}>
-                <input
-                  value={chatInput}
-                  onChange={(event) => setChatInput(event.target.value)}
-                  placeholder="Drop a message..."
-                  disabled={(!rulesAccepted && !isHost) || (!!roomState.chatLocked && !isHost)}
-                />
-                <button type="submit" disabled={(!rulesAccepted && !isHost) || (!!roomState.chatLocked && !isHost)}>
-                  Send
-                </button>
-              </form>
-              {chatError && <p className="warn">{chatError}</p>}
-              <div className="reactions">
-                <button type="button" onClick={() => setFireReactions((n) => n + 1)}>
-                  🔥 {fireReactions}
-                </button>
-                <button type="button" onClick={() => setHeartReactions((n) => n + 1)}>
-                  ❤️ {heartReactions}
-                </button>
-                <button type="button" onClick={() => setWowReactions((n) => n + 1)}>
-                  ⚡ {wowReactions}
-                </button>
-              </div>
-            </section>
-          )}
-
-          {activeTab === "participants" && (
-            <section className="panel tab-panel">
-              <div className="panel-head">
-                <h2>Participants</h2>
-                <p className="subtle">Roles, queue, and sync status</p>
-              </div>
-              <div className="participant-list">
-                {participantList.map((entry) => (
-                  <article key={entry.name} className="participant-item">
-                    <div>
-                      <strong>{entry.name}</strong>
-                      <p className="subtle">{entry.role === "host" ? "Host" : "Viewer"}</p>
-                    </div>
-                    <span className="chip">{entry.name === username ? "You" : "Synced"}</span>
-                  </article>
-                ))}
-              </div>
-              {roomState.joinQueue.length > 0 && (
-                <div className="queue-list">
-                  <h3>Pending join requests</h3>
-                  {roomState.joinQueue.map((requestUser) => (
-                    <div key={requestUser} className="queue-item">
-                      <span>@{requestUser}</span>
-                      {isHost ? (
-                        <div className="queue-actions">
-                          <button type="button" onClick={() => approveJoinRequest(requestUser)}>
-                            Approve
-                          </button>
-                          <button type="button" onClick={() => denyJoinRequest(requestUser)}>
-                            Deny
-                          </button>
-                        </div>
-                      ) : (
-                        <span className="subtle">Waiting for host</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-          )}
-
-          {activeTab === "tools" && isHost && (
-            <section className="panel tab-panel">
-              <h2>Host & moderation tools</h2>
-              <section className="queue-box">
-                <h3>Private lobby controls</h3>
-                <p className="subtle">Host has full pause/play/restart authority for everyone in room.</p>
-                <div className="button-row">
-                  <button type="button" onClick={togglePrivateLobby}>
-                    {roomState.privateLobby ? "Disable private mode" : "Enable private mode"}
-                  </button>
-                  <button type="button" onClick={toggleLobbyLock}>
-                    {roomState.locked ? "Unlock lobby" : "Lock lobby"}
-                  </button>
-                  <button type="button" onClick={toggleChatLock}>
-                    {roomState.chatLocked ? "Unlock chat" : "Lock chat"}
-                  </button>
-                </div>
-                <div className="slow-mode-row">
-                  <button type="button" onClick={() => setSlowMode(0)}>
-                    Slow off
-                  </button>
-                  <button type="button" onClick={() => setSlowMode(5)}>
-                    Slow 5s
-                  </button>
-                  <button type="button" onClick={() => setSlowMode(10)}>
-                    Slow 10s
-                  </button>
-                </div>
-                <div className="host-playback-row">
-                  <button type="button" onClick={pauseForAll}>
-                    Pause all
-                  </button>
-                  <button type="button" onClick={playForAll}>
-                    Play all
-                  </button>
-                  <button type="button" onClick={restartForAll}>
-                    Restart 00:00
-                  </button>
-                </div>
-                <div className="inline-form">
-                  <input
-                    value={announcementDraft}
-                    onChange={(event) => setAnnouncementDraft(event.target.value)}
-                    placeholder="Post announcement to all viewers..."
-                  />
-                  <button type="button" onClick={postAnnouncement}>
-                    Announce
-                  </button>
-                </div>
-                {roomState.announcement && (
-                  <button type="button" onClick={clearAnnouncement}>
-                    Clear announcement
-                  </button>
-                )}
-                {roomState.joinQueue.length > 0 && (
-                  <div className="queue-row-actions">
-                    <button type="button" onClick={approveAllJoinRequests}>
-                      Approve all
-                    </button>
-                    <button type="button" onClick={denyAllJoinRequests}>
-                      Deny all
-                    </button>
+          <section className="reference-chat-wrap">
+            <h3>Party Chat</h3>
+            <div className="reference-chat-list">
+              {visibleChat.map((message) => (
+                <article key={message.id} className={`reference-chat-row ${message.own ? "own" : ""}`}>
+                  <div className="reference-chat-avatar">{message.user.slice(0, 1).toUpperCase()}</div>
+                  <div className="reference-chat-bubble">
+                    <strong>{message.user}:</strong> {message.text}
                   </div>
-                )}
-              </section>
+                </article>
+              ))}
+            </div>
+            <form className="inline-form" onSubmit={handleSendChat}>
+              <input
+                value={chatInput}
+                onChange={(event) => setChatInput(event.target.value)}
+                placeholder="Drop a message..."
+                disabled={(!rulesAccepted && !isHost) || (!!roomState.chatLocked && !isHost)}
+              />
+              <button type="submit" disabled={(!rulesAccepted && !isHost) || (!!roomState.chatLocked && !isHost)}>
+                Send
+              </button>
+            </form>
+            {chatError && <p className="reference-feedback warn">{chatError}</p>}
+          </section>
 
-              <section className="panel">
-                <h3>Trust and moderation</h3>
-                <ul>
-                  <li>Host-only playback controls and private lobby approvals.</li>
-                  <li>Report flow is available for harassment, hate, sexual, or copyright abuse.</li>
-                  <li>Fast moderation actions include mute, remove, and blocklist.</li>
-                </ul>
-                <div className="button-row">
-                  <button type="button" onClick={() => runModAction("Mute user")}>
-                    Mute user
-                  </button>
-                  <button type="button" onClick={() => runModAction("Remove user")}>
-                    Remove user
-                  </button>
-                  <button type="button" onClick={() => runModAction("Freeze room")}>
-                    Freeze room
-                  </button>
-                </div>
-                <form className="inline-form" onSubmit={addBlockedUser}>
-                  <input
-                    value={blockedUser}
-                    onChange={(event) => setBlockedUser(event.target.value)}
-                    placeholder="Block user handle..."
-                  />
-                  <button type="submit">Block</button>
-                </form>
-                {blockedUsers.length > 0 && (
-                  <p className="subtle">Blocked: {blockedUsers.map((u) => `@${u}`).join(", ")}</p>
-                )}
-                <form className="report" onSubmit={handleReport}>
-                  <h3>Report abuse</h3>
-                  <label>
-                    Reason
-                    <select value={reportReason} onChange={(event) => setReportReason(event.target.value)}>
-                      <option value="harassment">Harassment or bullying</option>
-                      <option value="hate">Hate or violent content</option>
-                      <option value="sexual">Sexual content involving minors</option>
-                      <option value="copyright">Copyright infringement</option>
-                    </select>
-                  </label>
-                  <label>
-                    Details
-                    <textarea
-                      value={reportDetails}
-                      onChange={(event) => setReportDetails(event.target.value)}
-                      placeholder="Describe what happened and include room/user IDs."
-                    />
-                  </label>
-                  <button type="submit">Submit report</button>
-                  {reportSubmitted && (
-                    <p className="ok">Report captured. Connect this form to backend moderation queue.</p>
-                  )}
-                </form>
-              </section>
-            </section>
-          )}
-        </section>
-
-        <nav
-          className="bottom-nav"
-          style={{ gridTemplateColumns: isHost ? "repeat(3, minmax(0, 1fr))" : "repeat(2, minmax(0, 1fr))" }}
-        >
-          <button
-            type="button"
-            className={activeTab === "chat" ? "active" : ""}
-            onClick={() => setActiveTab("chat")}
-          >
-            Chat
+          <button type="button" className="reference-cta reference-cta-warm" onClick={() => setSettingsOpen(true)}>
+            Manage Lobby &amp; Invite
           </button>
-          <button
-            type="button"
-            className={activeTab === "participants" ? "active" : ""}
-            onClick={() => setActiveTab("participants")}
-          >
-            Participants
-          </button>
-          {isHost && (
-            <button
-              type="button"
-              className={activeTab === "tools" ? "active" : ""}
-              onClick={() => setActiveTab("tools")}
-            >
-              Host tools
-            </button>
-          )}
-        </nav>
+        </div>
       </section>
+      <span className="reference-corner-spark">✦</span>
       {SettingsSheet}
       {achievement && (
         <aside className="achievement-pop" role="status" aria-live="polite">
