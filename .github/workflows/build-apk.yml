@@ -5,6 +5,11 @@ on:
     branches: [main, master, cursor/ui-image-matching-4d2a]
   workflow_dispatch:
 
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -65,3 +70,35 @@ jobs:
           update: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  deploy-apk:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    steps:
+      - name: Download APK
+        uses: actions/download-artifact@v4
+        with:
+          name: popcorlobby-debug-apk
+
+      - name: Setup Pages artifact
+        run: |
+          mkdir -p apk-site
+          mv app-debug.apk apk-site/
+          echo '<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url=app-debug.apk"><title>Download PopcornLobby</title></head><body><p>Downloading... <a href="app-debug.apk">Click here</a> if not automatic.</p></body></html>' > apk-site/index.html
+
+      - name: Upload to Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: apk-site
+
+  deploy:
+    needs: deploy-apk
+    runs-on: ubuntu-latest
+    environment: github-pages
+    steps:
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4
